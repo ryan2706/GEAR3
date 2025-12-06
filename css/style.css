@@ -34,6 +34,11 @@
     /* Transitions */
     --transition-fast: 150ms ease;
     --transition-normal: 300ms ease;
+
+    /* Tooltip Default (Light Mode) */
+    --tooltip-bg: rgba(255, 255, 255, 0.95);
+    --tooltip-border: rgba(0, 0, 0, 0.1);
+    --tooltip-text: #0f172a;
 }
 
 [data-theme="dark"] {
@@ -45,8 +50,15 @@
     /* Slate 50 */
     --text-muted: #94a3b8;
     /* Slate 400 */
+    --text-muted: #94a3b8;
+    /* Slate 400 */
     --border-color: #334155;
     /* Slate 700 */
+
+    /* Tooltip Dark Mode */
+    --tooltip-bg: rgba(20, 20, 25, 0.95);
+    --tooltip-border: rgba(255, 255, 255, 0.1);
+    --tooltip-text: #f8fafc;
 }
 
 * {
@@ -403,7 +415,9 @@ button {
 
 .hidden {
     display: none;
-}/* About Page Redesign */
+}
+
+/* About Page Redesign */
 .about-container {
     display: grid;
     grid-template-columns: 1fr;
@@ -484,7 +498,9 @@ button {
 
 .credit-list li:last-child {
     border-bottom: none;
-}/* Home Page Redesign */
+}
+
+/* Home Page Redesign */
 .features-section {
     max-width: 900px;
     margin: 0 auto 4rem auto;
@@ -566,7 +582,9 @@ button {
     color: var(--primary-color);
     font-style: normal;
     text-align: right;
-}/* Carousel Styles */
+}
+
+/* Carousel Styles */
 .hero-carousel-section {
     max-width: 1200px;
     margin: 0 -2rem;
@@ -723,4 +741,59 @@ button {
 .indicator.active {
     background: white;
     transform: scale(1.2);
+}
+
+/* Chord Tooltip */
+#chord-tooltip {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    pointer-events: none;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--tooltip-border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    transition: opacity 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+        transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 140px;
+}
+
+#chord-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+#chord-tooltip h4 {
+    margin: 0 0 8px 0;
+    color: var(--primary-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+#chord-tooltip .chord-diagram {
+    width: 120px;
+    height: 140px;
+}
+
+/* Chord Highlight on Hover */
+.chord {
+    cursor: help;
+    transition: color 0.15s ease, text-shadow 0.15s ease;
+    border-bottom: 1px dotted transparent;
+}
+
+.chord:hover {
+    color: var(--primary-color);
+    text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.4);
+    border-bottom-color: var(--primary-color);
 }

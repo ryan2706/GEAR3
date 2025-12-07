@@ -1122,11 +1122,12 @@ function getChordFingering(chordName) {
     return null;
 }
 
+
 function generateChordSVG(chordName, fingering) {
     // Config
-    const width = 180;
+    const width = 180; // Larger canvas
     const height = 180;
-    const padding = 30;
+    const padding = 30; // Generous padding for text
     const frets = 5;
     const strings = 6;
     const fretSpacing = (height - padding * 2) / frets;
@@ -1155,7 +1156,7 @@ function generateChordSVG(chordName, fingering) {
         svg += `<line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}" stroke="var(--text-color)" stroke-width="4" />`;
     } else {
         // Draw Fret Number
-        svg += `<text x="${padding - 8}" y="${padding + fretSpacing / 1.5}" fill="var(--text-muted)" font-family="Arial" font-size="12">${baseFret}fr</text>`;
+        svg += `<text x="${padding - 10}" y="${padding + fretSpacing / 1.5}" fill="var(--text-muted)" text-anchor="end" font-family="Arial" font-size="14">${baseFret}fr</text>`;
     }
 
     // Draw Frets

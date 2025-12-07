@@ -1124,9 +1124,9 @@ function getChordFingering(chordName) {
 
 function generateChordSVG(chordName, fingering) {
     // Config
-    const width = 120;
-    const height = 140;
-    const padding = 15;
+    const width = 180;
+    const height = 180;
+    const padding = 30;
     const frets = 5;
     const strings = 6;
     const fretSpacing = (height - padding * 2) / frets;

@@ -1,12 +1,11 @@
 // Main Application Entry Point
 
-console.log('GEAR App Initialized');
+
 
 // Theme Toggle Logic
 const themeToggle = document.getElementById('theme-toggle');
 const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
 
-// Check for saved user preference, if any, on load of the website
 const currentTheme = localStorage.getItem('theme');
 if (currentTheme == 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -32,7 +31,6 @@ const navLinks = document.querySelector('.nav-links');
 if (menuToggle) {
     menuToggle.addEventListener('click', () => {
         navLinks.classList.toggle('active');
-        // Optional: Change icon or animate
     });
 
     // Close menu when a link is clicked
@@ -77,7 +75,7 @@ async function handleNavigation() {
     }
 
     const hash = window.location.hash.slice(1) || '/';
-    console.log('Navigating to:', hash);
+
 
     // Simple route matching
     let routeHandler = routes[hash];
@@ -136,17 +134,17 @@ function renderHome() {
 
 const carouselData = [
     {
-        img: 'https://ryan2706.github.io/GEAR/carouselMedia/banner---piano.jpg',
+        img: 'https://ryan2706.github.io/GEAR/banner---piano.jpg',
         verse: '"Sing to him a new song; play skillfully, and shout for joy."',
         ref: 'Psalm 33:3'
     },
     {
-        img: 'https://ryan2706.github.io/GEAR/carouselMedia/banner---drumsticks.jpg',
+        img: 'https://ryan2706.github.io/GEAR/banner---drumsticks.jpg',
         verse: '"All the nations you have made will come and worship before you, Lord; they will bring glory to your name. For you are great and do marvelous deeds; you alone are God."',
         ref: 'Psalm 86:9-10'
     },
     {
-        img: 'https://ryan2706.github.io/GEAR/carouselMedia/banner---electricGuitar.jpg',
+        img: 'https://ryan2706.github.io/GEAR/banner---electricGuitar.jpg',
         verse: '"All the earth worships you and sings praises to you; they sing praises to your name."',
         ref: 'Psalm 66:4'
     }
@@ -247,13 +245,18 @@ async function renderSearch() {
     });
 
     // Add event listeners for checkboxes
-    document.getElementById('song-list').addEventListener('change', (e) => {
+    document.getElementById('song-list').addEventListener('change', async (e) => {
         if (e.target.type === 'checkbox') {
             const title = e.target.value;
             if (e.target.checked) {
                 // Check if already in list
                 if (!selectedSongs.some(s => s.title === title)) {
-                    selectedSongs.push({ title: title, keyIndex: 0 }); // Default key 0
+                    // Fetch song to get original key
+                    const song = songsData.find(s => s.title === title);
+                    if (song) {
+                        await fetchSongContent(song);
+                        selectedSongs.push({ title: title, keyIndex: song.originalKeyIndex !== undefined ? song.originalKeyIndex : 0 });
+                    }
                 }
             } else {
                 selectedSongs = selectedSongs.filter(s => s.title !== title);
@@ -425,10 +428,10 @@ function transposeText(text, semitones) {
     const lines = text.split('\n');
 
     // Regex for strict validation of a single token as a chord
-    const strictChordRegex = /^([A-G](?:#|b)?)(m|maj|min|dim|aug|sus|add|M|2|4|5|6|7|9|11|13)*(\/[A-G](?:#|b)?)?$/;
+    const strictChordRegex = /^([A-G](?:#|b)?)((?:m|maj|min|dim|aug|sus|add|M|2|4|5|6|7|9|11|13)*)(\/[A-G](?:#|b)?)?$/;
 
     // Regex for finding/replacing chords within a confirmed chord line
-    const chordRegex = /\b([A-G](?:#|b)?)(m|maj|min|dim|aug|sus|add|M|2|4|5|6|7|9|11|13)*(\/[A-G](?:#|b)?)?(?=\s|$)/g;
+    const chordRegex = /\b([A-G](?:#|b)?)((?:m|maj|min|dim|aug|sus|add|M|2|4|5|6|7|9|11|13)*)(\/[A-G](?:#|b)?)?(?=\s|$)/g;
 
     return lines.map(line => {
         const trimmed = line.trim();
@@ -784,7 +787,7 @@ window.generateDoc = async () => {
 
                     const runs = [];
                     let lastIndex = 0;
-                    const tagRegex = /<span class="([^"]+)">([^<]+)<\/span>/g;
+                    const tagRegex = /<span class="([^"]+)"[^>]*>([^<]+)<\/span>/g;
                     let match;
 
                     while ((match = tagRegex.exec(line)) !== null) {
@@ -863,7 +866,17 @@ window.generateDoc = async () => {
         });
 
         const blob = await Packer.toBlob(doc);
-        saveAs(blob, "Setlist.docx");
+        const newBlob = new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+
+        // Manual download fallback to ensure filename is respected
+        const url = window.URL.createObjectURL(newBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Setlist.docx";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
 
     } catch (error) {
         console.error("Error generating doc:", error);
@@ -926,7 +939,7 @@ function renderAbout() {
                     <ul class="credit-list">
                         <li>Transposition logic inspired by <strong>jQuery Chord Transpose Plugin</strong> by Jesse Gavin.</li>
                         <li><strong>docx</strong> library for document generation.</li>
-                        <li><strong>Note:</strong> This modern version (GEAR 2) uses Vanilla JS and custom CSS, moving away from Bootstrap/jQuery dependencies of the original.</li>
+                        <li><strong>Note:</strong> This modern version (GEAR 3) uses Vanilla JS and custom CSS, moving away from Bootstrap/jQuery dependencies of the original.</li>
                         <li>Gear icon designed by <strong>Freepik</strong>.</li>
                     </ul>
                 </div>
@@ -1104,7 +1117,6 @@ function getChordFingering(chordName) {
     const match = chordName.match(/^([A-G](?:#|b)?)/);
     if (match) {
         const root = match[1];
-        // If it's a minor chord?
         const isMinor = chordName.includes('m') && !chordName.includes('maj');
         const fallback = root + (isMinor ? 'm' : '');
         if (fallback !== chordName && CHORD_FINGERINGS[fallback]) {
@@ -1112,7 +1124,6 @@ function getChordFingering(chordName) {
         }
     }
 
-    // Try handling M7 -> maj7 alias dynamically
     if (chordName.endsWith('M7')) {
         const root = chordName.replace('M7', '');
         const maj7Name = root + 'maj7';

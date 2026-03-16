@@ -1,29 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400;1,600&family=Courier+Prime:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Lato:ital,wght@0,300;0,400;0,700;1,400&display=swap');
 
 /* ─────────────────────────────────────────────────────────────
    GEAR — Worship Resources
-   Aesthetic: Liturgical Editorial
-   Warm parchment · antique red · candlelight gold · reverent serif
+   Aesthetic: Well-loved Hymnal
+   Warm paper · dignified serif headings · functional sans body
    ───────────────────────────────────────────────────────────── */
 
 :root {
     /* Palette */
-    --primary-color:    #8B3A2F;
-    --primary-hover:    #6E2820;
-    --primary-rgb:      139, 58, 47;
-    --secondary-color:  #C4872A;
-    --background-color: #FAF5E9;
-    --surface-color:    #FFF8F0;
-    --text-color:       #1C1008;
-    --text-muted:       #7A6A52;
-    --border-color:     #E0D1B4;
-    --gold:             #C4872A;
-    --gold-subtle:      rgba(196, 135, 42, 0.10);
+    --primary-color:    #7A3028;
+    --primary-hover:    #5E2118;
+    --primary-rgb:      122, 48, 40;
+    --secondary-color:  #B87A25;
+    --background-color: #F5F0E6;
+    --surface-color:    #FAF6EE;
+    --text-color:       #1E1508;
+    --text-muted:       #6B5B45;
+    --border-color:     #DDD0B8;
+    --gold:             #B87A25;
+    --gold-subtle:      rgba(184, 122, 37, 0.08);
 
     /* Typography */
-    --font-sans:    'Crimson Pro', Georgia, serif;
-    --font-heading: 'Cormorant Garamond', Georgia, serif;
-    --font-mono:    'Courier Prime', 'Courier New', monospace;
+    --font-sans:    'Lato', system-ui, sans-serif;
+    --font-heading: 'Playfair Display', Georgia, serif;
+    --font-mono:    'Courier New', Courier, monospace;
 
     /* Spacing */
     --spacing-sm: 0.5rem;
@@ -31,37 +31,37 @@
     --spacing-lg: 2rem;
     --spacing-xl: 4rem;
 
-    /* Shadows — warm-tinted */
-    --shadow-sm: 0 1px 4px rgba(28, 16, 8, 0.08);
-    --shadow-md: 0 4px 16px rgba(28, 16, 8, 0.10), 0 1px 4px rgba(28, 16, 8, 0.06);
-    --shadow-lg: 0 12px 40px rgba(28, 16, 8, 0.15), 0 4px 12px rgba(28, 16, 8, 0.08);
+    /* Shadows — soft, warm */
+    --shadow-sm: 0 1px 3px rgba(30, 21, 8, 0.07);
+    --shadow-md: 0 3px 10px rgba(30, 21, 8, 0.09);
+    --shadow-lg: 0 8px 28px rgba(30, 21, 8, 0.12), 0 3px 8px rgba(30, 21, 8, 0.07);
 
     /* Transitions */
     --transition-fast:   150ms ease;
-    --transition-normal: 300ms ease;
+    --transition-normal: 280ms ease;
 
     /* Tooltip */
-    --tooltip-bg:     rgba(255, 248, 240, 0.97);
-    --tooltip-border: rgba(139, 58, 47, 0.15);
-    --tooltip-text:   #1C1008;
+    --tooltip-bg:     rgba(250, 246, 238, 0.97);
+    --tooltip-border: rgba(122, 48, 40, 0.12);
+    --tooltip-text:   #1E1508;
 }
 
 [data-theme="dark"] {
-    --primary-color:    #D4876A;
-    --primary-hover:    #E89A7E;
-    --primary-rgb:      212, 135, 106;
-    --secondary-color:  #D4A852;
-    --background-color: #140E06;
-    --surface-color:    #1E1509;
-    --text-color:       #F0E5CC;
-    --text-muted:       #9B8A6F;
-    --border-color:     #3D2E1A;
-    --gold:             #D4A852;
-    --gold-subtle:      rgba(212, 168, 82, 0.09);
+    --primary-color:    #C97A62;
+    --primary-hover:    #DB907A;
+    --primary-rgb:      201, 122, 98;
+    --secondary-color:  #C89840;
+    --background-color: #18100A;
+    --surface-color:    #221610;
+    --text-color:       #EDE4CC;
+    --text-muted:       #9A8570;
+    --border-color:     #3A2A1C;
+    --gold:             #C89840;
+    --gold-subtle:      rgba(200, 152, 64, 0.08);
 
-    --tooltip-bg:     rgba(30, 21, 9, 0.97);
-    --tooltip-border: rgba(212, 168, 82, 0.20);
-    --tooltip-text:   #F0E5CC;
+    --tooltip-bg:     rgba(34, 22, 16, 0.97);
+    --tooltip-border: rgba(200, 152, 64, 0.18);
+    --tooltip-text:   #EDE4CC;
 }
 
 /* ── Reset ── */
@@ -76,17 +76,17 @@ body {
     background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.65;
-    font-size: 1.0625rem;
+    font-size: 1rem;
     transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 
-/* Parchment grain overlay */
+/* Subtle paper texture */
 body::after {
     content: '';
     position: fixed;
     inset: 0;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-    opacity: 0.022;
+    opacity: 0.016;
     pointer-events: none;
     z-index: 9999;
 }
@@ -103,20 +103,20 @@ body::after {
     position: sticky;
     top: 0;
     z-index: 100;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    background-color: rgba(250, 245, 233, 0.90);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background-color: rgba(245, 240, 230, 0.92);
     border-bottom: 1px solid var(--border-color);
 }
 
 [data-theme="dark"] .site-header {
-    background-color: rgba(20, 14, 6, 0.92);
+    background-color: rgba(24, 16, 10, 0.94);
 }
 
 .navbar {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0.9rem var(--spacing-lg);
+    padding: 0.875rem var(--spacing-lg);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -124,16 +124,16 @@ body::after {
 
 .logo {
     font-family: var(--font-heading);
-    font-weight: 600;
-    font-size: 1.625rem;
+    font-weight: 700;
+    font-size: 1.5rem;
     color: var(--primary-color);
-    letter-spacing: 0.18em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
 .nav-links {
     display: flex;
-    gap: 2.5rem;
+    gap: 2.25rem;
     list-style: none;
 }
 
@@ -143,29 +143,27 @@ body::after {
     font-family: var(--font-sans);
     font-size: 0.9375rem;
     font-weight: 400;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.01em;
     transition: color var(--transition-fast);
     position: relative;
     padding-bottom: 2px;
 }
 
-.nav-links a::after {
+/* Gold underline only on the active page */
+.nav-links a.active::after {
     content: '';
     position: absolute;
     bottom: -2px;
     left: 0;
-    width: 0;
+    width: 100%;
     height: 1px;
     background-color: var(--gold);
-    transition: width var(--transition-normal);
 }
 
-.nav-links a:hover::after,
-.nav-links a.active::after {
-    width: 100%;
+.nav-links a:hover {
+    color: var(--text-color);
 }
 
-.nav-links a:hover,
 .nav-links a.active {
     color: var(--text-color);
 }
@@ -187,23 +185,20 @@ body::after {
 
 .hero h1 {
     font-family: var(--font-heading);
-    font-size: 4.5rem;
-    font-weight: 300;
-    line-height: 1.05;
+    font-size: 3.75rem;
+    font-weight: 400;
+    font-style: italic;
+    line-height: 1.1;
     letter-spacing: -0.01em;
     margin-bottom: var(--spacing-md);
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--gold) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--primary-color);
 }
 
 .hero p {
     font-family: var(--font-sans);
-    font-size: 1.25rem;
-    font-style: italic;
+    font-size: 1.0625rem;
     color: var(--text-muted);
-    max-width: 560px;
+    max-width: 540px;
     margin: 0 auto;
 }
 
@@ -216,7 +211,6 @@ body::after {
     color: var(--text-muted);
     font-size: 0.875rem;
     font-family: var(--font-sans);
-    letter-spacing: 0.04em;
 }
 
 /* ── Base Buttons ── */
@@ -236,32 +230,31 @@ button {
 
 #theme-toggle:hover {
     color: var(--primary-color);
-    background-color: var(--gold-subtle);
+    background-color: rgba(122, 48, 40, 0.07);
 }
 
 .btn {
     display: inline-block;
-    padding: 0.625rem 1.5rem;
+    padding: 0.6rem 1.375rem;
     font-family: var(--font-sans);
     font-size: 0.9375rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    font-weight: 400;
+    letter-spacing: 0.01em;
     text-decoration: none;
     transition: all var(--transition-fast);
     border: none;
     cursor: pointer;
-    border-radius: 1px;
+    border-radius: 2px;
 }
 
 .btn-primary {
     background-color: var(--primary-color);
-    color: #FFF8F0;
+    color: #FAF6EE;
 }
 
 .btn-primary:hover {
     background-color: var(--primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary {
@@ -273,12 +266,11 @@ button {
 .btn-secondary:hover {
     border-color: var(--primary-color);
     color: var(--primary-color);
-    background-color: var(--gold-subtle);
 }
 
 .btn-sm {
-    padding: 0.3rem 0.875rem;
-    font-size: 0.8125rem;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.875rem;
 }
 
 /* ── Search Page ── */
@@ -289,26 +281,24 @@ button {
 
 .search-input {
     width: 100%;
-    padding: 0.875rem 1.125rem;
+    padding: 0.75rem 1rem;
     font-family: var(--font-sans);
-    font-size: 1.125rem;
+    font-size: 1rem;
     border: 1px solid var(--border-color);
     border-bottom: 2px solid var(--border-color);
     border-radius: 0;
     margin-bottom: 2rem;
     background-color: var(--surface-color);
     color: var(--text-color);
-    transition: border-color var(--transition-fast);
+    transition: border-bottom-color var(--transition-fast);
 }
 
 .search-input::placeholder {
     color: var(--text-muted);
-    font-style: italic;
 }
 
 .search-input:focus {
     outline: none;
-    border-color: var(--border-color);
     border-bottom-color: var(--primary-color);
 }
 
@@ -325,40 +315,24 @@ button {
     gap: 1rem;
     background-color: transparent;
     border-bottom: 1px solid var(--border-color);
+    border-left: 2px solid transparent;
     padding: 0 0.75rem 0 0;
-    transition: background-color var(--transition-fast);
-    position: relative;
-}
-
-.song-item-container::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background-color: var(--gold);
-    transform: scaleY(0);
-    transition: transform var(--transition-fast);
-    transform-origin: center;
+    transition: background-color var(--transition-fast), border-left-color var(--transition-fast);
 }
 
 .song-item-container:hover {
     background-color: var(--gold-subtle);
-}
-
-.song-item-container:hover::before {
-    transform: scaleY(1);
+    border-left-color: var(--gold);
 }
 
 .song-item {
     display: block;
-    padding: 0.875rem 0.75rem;
+    padding: 0.8125rem 0.75rem;
     text-decoration: none;
     color: var(--text-color);
     font-family: var(--font-sans);
     font-weight: 400;
-    font-size: 1.0625rem;
+    font-size: 1rem;
     flex: 1;
     transition: color var(--transition-fast);
 }
@@ -376,25 +350,27 @@ button {
 .song-detail h1 {
     font-family: var(--font-heading);
     font-weight: 400;
-    font-size: 2.5rem;
-    letter-spacing: -0.01em;
+    font-size: 2.25rem;
+    color: var(--text-color);
 }
 
 .song-content {
     background-color: var(--surface-color);
     padding: 2.5rem;
     border: 1px solid var(--border-color);
-    border-top: 3px solid var(--primary-color);
-    margin: 2rem 0;
+    border-top: 2px solid var(--primary-color);
+    margin: 1.75rem 0;
     min-height: 300px;
 }
 
-/* ── Chord Charts (pre/code) ── */
+/* ── Chord Charts ── */
+/* Strict monospace — character alignment is critical */
 pre {
-    font-family: var(--font-mono);
+    font-family: 'Courier New', Courier, monospace;
     font-size: 0.9375rem;
-    line-height: 1.85;
+    line-height: 2;
     color: var(--text-color);
+    white-space: pre;
 }
 
 /* ── Transposition Controls ── */
@@ -404,7 +380,7 @@ pre {
     gap: 1rem;
     margin-bottom: 1.5rem;
     background-color: var(--surface-color);
-    padding: 0.625rem 1rem;
+    padding: 0.5rem 1rem;
     border: 1px solid var(--border-color);
     width: fit-content;
 }
@@ -427,10 +403,10 @@ pre {
 .key-display {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 1.375rem;
+    font-size: 1.25rem;
     min-width: 2rem;
     text-align: center;
-    color: var(--primary-color);
+    color: var(--gold);
 }
 
 /* ── Chord Annotations ── */
@@ -438,21 +414,20 @@ pre {
     font-weight: bold;
     color: var(--primary-color);
     cursor: help;
-    transition: color 0.15s ease, text-shadow 0.15s ease;
+    transition: color 0.15s ease;
     border-bottom: 1px dotted transparent;
 }
 
 .chord:hover {
     color: var(--gold);
-    text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.3);
     border-bottom-color: var(--gold);
 }
 
 .section-header {
-    font-family: var(--font-heading);
-    font-weight: 600;
-    font-size: 1.125rem;
-    letter-spacing: 0.09em;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 0.8125rem;
+    letter-spacing: 0.10em;
     text-transform: uppercase;
     color: var(--text-muted);
 }
@@ -481,15 +456,14 @@ pre {
 
 .remove-btn {
     color: var(--primary-color);
-    font-weight: bold;
+    font-weight: 400;
     padding: 0.25rem 0.5rem;
     font-size: 1rem;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    transition: color var(--transition-fast);
 }
 
 .remove-btn:hover {
     color: var(--primary-hover);
-    background-color: rgba(139, 58, 47, 0.08);
 }
 
 /* ── Suggestion List ── */
@@ -560,34 +534,30 @@ pre {
     background-color: var(--surface-color);
     padding: 2rem;
     border: 1px solid var(--border-color);
-    border-top: 3px solid var(--gold);
-    box-shadow: var(--shadow-sm);
 }
 
 .about-card h2 {
     font-family: var(--font-heading);
-    font-size: 1.875rem;
+    font-size: 1.625rem;
     font-weight: 400;
     margin-bottom: 1rem;
     color: var(--primary-color);
-    letter-spacing: -0.01em;
 }
 
 .about-card h3 {
     font-family: var(--font-heading);
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     font-weight: 500;
     margin-top: 1.5rem;
     margin-bottom: 0.5rem;
     color: var(--text-color);
-    letter-spacing: 0.02em;
 }
 
 .about-card p {
     margin-bottom: 1rem;
     color: var(--text-muted);
     font-size: 1rem;
-    line-height: 1.72;
+    line-height: 1.7;
 }
 
 .about-card a {
@@ -602,9 +572,9 @@ pre {
 }
 
 .alert-box {
-    background-color: rgba(139, 58, 47, 0.05);
+    background-color: rgba(122, 48, 40, 0.04);
     border-left: 3px solid var(--primary-color);
-    padding: 1rem 1.25rem;
+    padding: 0.875rem 1.125rem;
     margin: 1rem 0;
     font-size: 0.9375rem;
     color: var(--text-color);
@@ -635,7 +605,7 @@ pre {
 .features-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: 1.25rem;
 }
 
 @media (min-width: 768px) {
@@ -646,46 +616,27 @@ pre {
 
 .feature-card {
     background-color: var(--surface-color);
-    padding: 2rem;
+    padding: 2.5rem 2rem;
     border: 1px solid var(--border-color);
     text-decoration: none;
     color: var(--text-color);
-    transition: all var(--transition-normal);
+    transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    position: relative;
-    overflow: hidden;
-}
-
-.feature-card::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(to right, var(--primary-color), var(--gold));
-    transform: scaleX(0);
-    transition: transform var(--transition-normal);
 }
 
 .feature-card:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-3px);
-}
-
-.feature-card:hover::after {
-    transform: scaleX(1);
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
 }
 
 .feature-card h3 {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.625rem;
     font-family: var(--font-heading);
-    font-size: 1.625rem;
+    font-size: 1.375rem;
     font-weight: 400;
-    letter-spacing: -0.01em;
     color: var(--text-color);
 }
 
@@ -697,7 +648,7 @@ pre {
     line-height: 1.65;
 }
 
-/* ── Verse Cards ── */
+/* ── Verse Cards (scripture — gold is appropriate here) ── */
 .verses-section {
     max-width: 900px;
     margin: 0 auto;
@@ -705,39 +656,39 @@ pre {
 
 .verses-container {
     display: grid;
-    gap: 1.25rem;
+    gap: 1.125rem;
 }
 
 .verse-card {
     background-color: var(--gold-subtle);
-    border-left: 3px solid var(--gold);
-    padding: 1.75rem 2rem;
+    border-left: 2px solid var(--gold);
+    padding: 1.5rem 1.75rem;
 }
 
 .verse-card blockquote {
     font-family: var(--font-heading);
     font-style: italic;
-    font-size: 1.375rem;
-    font-weight: 300;
-    line-height: 1.5;
-    margin-bottom: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 400;
+    line-height: 1.55;
+    margin-bottom: 0.625rem;
     color: var(--text-color);
 }
 
 .verse-card blockquote::before {
     content: '\201C';
-    font-size: 2.25rem;
+    font-size: 2rem;
     line-height: 0;
-    vertical-align: -0.4em;
+    vertical-align: -0.35em;
     color: var(--gold);
     margin-right: 0.1em;
 }
 
 .verse-card blockquote::after {
     content: '\201D';
-    font-size: 2.25rem;
+    font-size: 2rem;
     line-height: 0;
-    vertical-align: -0.4em;
+    vertical-align: -0.35em;
     color: var(--gold);
     margin-left: 0.1em;
 }
@@ -745,9 +696,9 @@ pre {
 .verse-card cite {
     display: block;
     font-family: var(--font-sans);
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.8125rem;
-    letter-spacing: 0.10em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--primary-color);
     font-style: normal;
@@ -762,7 +713,6 @@ pre {
 
 @media (min-width: 768px) {
     .hero-carousel-section {
-        border-radius: 2px;
         overflow: hidden;
         margin: 0 auto;
     }
@@ -772,14 +722,13 @@ pre {
     position: relative;
     width: 100%;
     height: 400px;
-    background-color: #1C1008;
+    background-color: #18100A;
     overflow: hidden;
 }
 
 @media (min-width: 768px) {
     .carousel-container {
         height: 500px;
-        border-radius: 2px;
     }
 }
 
@@ -814,27 +763,27 @@ pre {
     height: 100%;
     background: linear-gradient(
         to top,
-        rgba(20, 8, 2, 0.75) 0%,
-        rgba(20, 8, 2, 0.30) 55%,
-        rgba(20, 8, 2, 0.10) 100%
+        rgba(18, 10, 4, 0.78) 0%,
+        rgba(18, 10, 4, 0.28) 55%,
+        rgba(18, 10, 4, 0.08) 100%
     );
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    padding: 3rem 2rem;
+    padding: 2.75rem 2rem;
 }
 
 .carousel-text {
     text-align: center;
-    color: #F0E5CC;
-    max-width: 760px;
-    animation: fadeInUp 0.9s ease-out;
+    color: #EDE4CC;
+    max-width: 720px;
+    animation: fadeInUp 0.8s ease-out;
 }
 
 @keyframes fadeInUp {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(16px);
     }
     to {
         opacity: 1;
@@ -844,26 +793,26 @@ pre {
 
 .carousel-text blockquote {
     font-family: var(--font-heading);
-    font-size: 1.875rem;
-    font-weight: 300;
+    font-size: 1.75rem;
+    font-weight: 400;
     font-style: italic;
-    margin-bottom: 0.75rem;
-    line-height: 1.3;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-    color: #F5EDD8;
+    margin-bottom: 0.625rem;
+    line-height: 1.35;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+    color: #F0E8D2;
 }
 
 .carousel-text cite {
     font-family: var(--font-sans);
-    font-size: 0.875rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.10em;
     text-transform: uppercase;
     font-style: normal;
-    color: #D4A852;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    color: #C89840;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
     display: block;
-    margin-top: 0.625rem;
+    margin-top: 0.5rem;
 }
 
 /* Carousel Controls */
@@ -871,20 +820,18 @@ pre {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(20, 8, 2, 0.45);
-    color: #F0E5CC;
-    border: 1px solid rgba(240, 229, 204, 0.18);
-    font-size: 1.5rem;
+    background: rgba(18, 10, 4, 0.40);
+    color: #EDE4CC;
+    border: 1px solid rgba(237, 228, 204, 0.15);
+    font-size: 1.375rem;
     padding: 0.875rem 0.625rem;
     cursor: pointer;
     z-index: 2;
-    transition: background 0.3s, border-color 0.3s;
-    backdrop-filter: blur(4px);
+    transition: background 0.25s;
 }
 
 .carousel-control:hover {
-    background: rgba(139, 58, 47, 0.65);
-    border-color: rgba(196, 135, 42, 0.5);
+    background: rgba(122, 48, 40, 0.60);
 }
 
 .carousel-control.prev {
@@ -897,7 +844,7 @@ pre {
 
 .carousel-indicators {
     position: absolute;
-    bottom: 1.5rem;
+    bottom: 1.25rem;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -907,18 +854,18 @@ pre {
 }
 
 .indicator {
-    width: 20px;
+    width: 18px;
     height: 2px;
     border-radius: 1px;
-    background: rgba(240, 229, 204, 0.35);
+    background: rgba(237, 228, 204, 0.30);
     border: none;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.25s;
 }
 
 .indicator.active {
-    background: #D4A852;
-    width: 36px;
+    background: #C89840;
+    width: 32px;
 }
 
 /* ── Chord Tooltip ── */
@@ -928,17 +875,17 @@ pre {
     pointer-events: none;
     background: var(--tooltip-bg);
     color: var(--tooltip-text);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--tooltip-border);
     border-top: 2px solid var(--primary-color);
     border-radius: 2px;
-    padding: 16px;
+    padding: 14px;
     box-shadow: var(--shadow-lg);
     opacity: 0;
-    transform: translateY(10px) scale(0.95);
-    transition: opacity 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
-        transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transform: translateY(8px) scale(0.96);
+    transition: opacity 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+        transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -954,9 +901,9 @@ pre {
     margin: 0 0 8px 0;
     font-family: var(--font-heading);
     color: var(--primary-color);
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     font-weight: 500;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
 }
 
 #chord-tooltip .chord-diagram {

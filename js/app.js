@@ -273,6 +273,7 @@ function renderSongList(songs) {
             <a href="#/song/${encodeURIComponent(song.title)}" class="song-item" data-url="${song.url}">
                 ${song.title}
             </a>
+            ${song.ccli ? '<span class="ccli-badge">CCLI</span>' : ''}
         </div>
     `).join('');
 }

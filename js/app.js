@@ -1,6 +1,8 @@
 // Main Application Entry Point
 
-
+import { parseChartBody } from './chart-parser.js';
+import { renderChart, transposeChart } from './chart-render.js';
+import { SECTION_HEADERS } from './chart-constants.js';
 
 // Theme Toggle Logic
 const themeToggle = document.getElementById('theme-toggle');
@@ -51,8 +53,28 @@ const routes = {
 
 const mainContent = document.getElementById('main-content');
 let songsData = [];
-// selectedSongs is now an Array of objects: { title: string, keyIndex: number }
+// selectedSongs is an Array of setlist entries:
+//   { entryId, title, keyIndex, langMode, sectionOverrides, planLabel }
+// entryId (not title) is the entry's identity — the same song can appear
+// more than once under different planLabels (BILINGUAL-SPEC.md §6.3: the
+// language plan belongs to the setlist entry, since the same song gets a
+// different plan in different service slots), so title alone can no longer
+// be trusted to find "the" entry the way it used to.
 let selectedSongs = [];
+
+function newSetlistEntry(title, keyIndex, song) {
+    const entry = {
+        entryId: crypto.randomUUID(),
+        title,
+        keyIndex,
+        planLabel: ''
+    };
+    if (song && song.chart && song.chart.meta.langs.length > 1) {
+        entry.langMode = song.langMode;
+        entry.sectionOverrides = {};
+    }
+    return entry;
+}
 
 async function loadSongs() {
     if (songsData.length === 0) {
@@ -134,17 +156,17 @@ function renderHome() {
 
 const carouselData = [
     {
-        img: 'https://ryan2706.github.io/GEAR/banner---piano.jpg',
+        img: 'banner---piano.jpg',
         verse: '"Sing to him a new song; play skillfully, and shout for joy."',
         ref: 'Psalm 33:3'
     },
     {
-        img: 'https://ryan2706.github.io/GEAR/banner---drumsticks.jpg',
+        img: 'banner---drumsticks.jpg',
         verse: '"All the nations you have made will come and worship before you, Lord; they will bring glory to your name. For you are great and do marvelous deeds; you alone are God."',
         ref: 'Psalm 86:9-10'
     },
     {
-        img: 'https://ryan2706.github.io/GEAR/banner---electricGuitar.jpg',
+        img: 'banner---electricGuitar.jpg',
         verse: '"All the earth worships you and sings praises to you; they sing praises to your name."',
         ref: 'Psalm 66:4'
     }
@@ -226,11 +248,65 @@ function initCarousel() {
     startTimer();
 }
 
+// A song's langs field only exists on bilingual/v2 entries — the 300+
+// existing v1 entries have none at all, which means "English" (every v1
+// chart is English-only), not "unknown."
+function songLanguageCategory(song) {
+    const langs = song.langs || ['en'];
+    const hasEn = langs.some(l => l.startsWith('en'));
+    const hasZh = langs.some(l => l.startsWith('zh'));
+    if (hasEn && hasZh) return 'bilingual';
+    if (hasZh) return 'zh';
+    return 'en';
+}
+
+const LANG_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'en', label: 'EN' },
+    { key: 'zh', label: '中' },
+    { key: 'bilingual', label: 'EN/中' }
+];
+
+// Two-tier ranking: an exact-prefix match in any searchable field outranks
+// a substring-only match anywhere else. Ties keep the catalog's original
+// order (Array.prototype.sort is stable).
+function matchSongs(songs, query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return songs;
+
+    const ranked = [];
+    for (const song of songs) {
+        const fields = [song.title, song.titleZh, song.titleZhAlt, song.pinyin, song.pinyinInitials]
+            .filter(Boolean)
+            .map(f => f.toLowerCase());
+        // pinyin is stored space-joined ("sheng jie ...") for readability;
+        // also compare a space-stripped copy so "shengjie" matches it too.
+        if (song.pinyin) fields.push(song.pinyin.toLowerCase().replace(/\s+/g, ''));
+
+        let tier = null;
+        for (const f of fields) {
+            if (f.startsWith(q)) { tier = 0; break; }
+            if (tier === null && f.includes(q)) tier = 1;
+        }
+        if (tier !== null) ranked.push({ song, tier });
+    }
+
+    ranked.sort((a, b) => a.tier - b.tier);
+    return ranked.map(r => r.song);
+}
+
 async function renderSearch() {
     await loadSongs();
+    let activeLangFilter = 'all';
+
+    const chipsHtml = LANG_FILTERS.map(f =>
+        `<button class="key-pill${f.key === 'all' ? ' active' : ''}" data-lang-filter="${f.key}">${f.label}</button>`
+    ).join('');
+
     mainContent.innerHTML = `
         <section class="search-page">
             <h1>Search Songs</h1>
+            <div class="key-pills lang-filter-chips">${chipsHtml}</div>
             <input type="text" id="search-input" placeholder="Search by title..." class="search-input">
             <div id="song-list" class="song-list">
                 ${renderSongList(songsData)}
@@ -238,10 +314,23 @@ async function renderSearch() {
         </section>
     `;
 
-    document.getElementById('search-input').addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-        const filteredSongs = songsData.filter(song => song.title.toLowerCase().includes(query));
-        document.getElementById('song-list').innerHTML = renderSongList(filteredSongs);
+    const updateResults = () => {
+        const query = document.getElementById('search-input').value;
+        let pool = activeLangFilter === 'all'
+            ? songsData
+            : songsData.filter(s => songLanguageCategory(s) === activeLangFilter);
+        pool = matchSongs(pool, query);
+        document.getElementById('song-list').innerHTML = renderSongList(pool);
+    };
+
+    document.getElementById('search-input').addEventListener('input', updateResults);
+
+    document.querySelectorAll('.lang-filter-chips .key-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeLangFilter = btn.dataset.langFilter;
+            document.querySelectorAll('.lang-filter-chips .key-pill').forEach(b => b.classList.toggle('active', b === btn));
+            updateResults();
+        });
     });
 
     // Add event listeners for checkboxes
@@ -255,10 +344,14 @@ async function renderSearch() {
                     const song = songsData.find(s => s.title === title);
                     if (song) {
                         await fetchSongContent(song);
-                        selectedSongs.push({ title: title, keyIndex: song.originalKeyIndex !== undefined ? song.originalKeyIndex : 0 });
+                        const keyIndex = song.originalKeyIndex !== undefined ? song.originalKeyIndex : 0;
+                        selectedSongs.push(newSetlistEntry(title, keyIndex, song));
                     }
                 }
             } else {
+                // Unchecking on the search page removes every instance of this
+                // song — duplicate plan-label entries are managed from the
+                // setlist builder, not this per-song checkbox.
                 selectedSongs = selectedSongs.filter(s => s.title !== title);
             }
         }
@@ -271,54 +364,102 @@ function renderSongList(songs) {
         <div class="song-item-container">
             <input type="checkbox" id="song-${song.title}" value="${song.title}" ${selectedSongs.some(s => s.title === song.title) ? 'checked' : ''}>
             <a href="#/song/${encodeURIComponent(song.title)}" class="song-item" data-url="${song.url}">
-                ${song.title}
+                <span class="song-item-text">
+                    <span class="song-item-title">${song.title}</span>
+                    ${song.titleZh ? `<span class="song-item-zh">${song.titleZh}</span>` : ''}
+                </span>
             </a>
             ${song.ccli ? '<span class="ccli-badge">CCLI</span>' : ''}
         </div>
     `).join('');
 }
 
+// ── Bilingual (v2) helpers ──
+
+function shortLang(tag) {
+    return (tag || '').split('-')[0].toLowerCase();
+}
+
+const LANG_MODES = ['en', 'zh', 'en-zh', 'zh-en'];
+
+// Short glyphs for the circular .key-pill buttons — "EN-ZH" doesn't fit a
+// 38px circle, "EN/中" does. Order follows the mode string, so 'zh-en'
+// reads "中/EN" (Chinese primary) rather than always "EN/中".
+const LANG_MODE_GLYPHS = { en: 'EN', zh: '中' };
+function langModeLabel(mode) {
+    return mode.split('-').map(part => LANG_MODE_GLYPHS[part]).join('/');
+}
+
+function isModeAvailable(mode, langs) {
+    const shorts = langs.map(shortLang);
+    return mode.split('-').every(part => shorts.includes(part));
+}
+
+// Ruby-support detection needs `document`, which is why it lives here and
+// not in chart-render.js (documented there as DOM-independent on purpose).
+// Computed once — a browser doesn't change its <ruby> support mid-session.
+const RUBY_SUPPORTED = !(document.createElement('ruby') instanceof HTMLUnknownElement);
+
+// True if any zh-* lyric line in this chart carries a generated .pinyin
+// reading (BILINGUAL-SPEC.md §5.6) — used to decide whether the "Show
+// Pinyin" toggle is worth showing at all for this song.
+function chartHasPinyin(chart) {
+    return chart.sections.some(section =>
+        section.groups.some(group =>
+            group.type === 'lyric' && group.lines.some(line => !!line.pinyin)
+        )
+    );
+}
+
 // Helper to fetch and parse song content
 async function fetchSongContent(song) {
-    if (song.originalContent) return; // Already loaded
+    if (song.chart) return; // Already loaded
 
     try {
         const response = await fetch(song.url);
         if (!response.ok) throw new Error('Content not found');
-        let html = await response.text();
+        const html = await response.text();
 
-        // Extract content inside <pre> tags
-        let content = html;
-        let originalKeyStr = null;
+        // DOMParser, not regex, pulls the fragment's <pre> apart — every
+        // data-* attribute rides through as-is via `meta`, so a chart can
+        // gain a new one without this call site needing to know its name.
+        // `key` absent from `meta` (undefined) is what triggers
+        // parseChartBody's own detectKeyIndexFromText() fallback below.
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const pre = doc.querySelector('pre.chord-chart') || doc.querySelector('pre');
+        const meta = pre ? { ...pre.dataset } : {};
 
-        // Try to match pre with data-key
-        const preMatchWithKey = html.match(/<pre[^>]*data-key="([^"]+)"[^>]*>(.*?)<\/pre>/s);
-        if (preMatchWithKey) {
-            originalKeyStr = preMatchWithKey[1];
-            content = preMatchWithKey[2];
-        } else if (html.match(/<pre[^>]*>(.*?)<\/pre>/s)) {
-            content = html.match(/<pre[^>]*>(.*?)<\/pre>/s)[1];
-        }
-
-        song.originalContent = content;
-
-        // Detect Key
-        if (originalKeyStr) {
-            let index = NOTES.indexOf(originalKeyStr);
-            if (index === -1) index = NOTES_FLAT.indexOf(originalKeyStr);
-            song.originalKeyIndex = index !== -1 ? index : detectKey(content);
-        } else {
-            song.originalKeyIndex = detectKey(content);
-        }
+        song.chart = parseChartBody({ ...meta, text: pre ? pre.textContent : html });
+        song.originalKeyIndex = song.chart.meta.keyIndex;
 
         // If currentKeyIndex wasn't set (e.g. added from search), set it to original
         if (song.currentKeyIndex === undefined) {
             song.currentKeyIndex = song.originalKeyIndex;
         }
 
+        // Seed the language-mode toggle: a saved choice from a previous chart
+        // if it's compatible with this one, otherwise data-primary + the
+        // other language (BILINGUAL-SPEC.md §4 — data-primary is "the
+        // default top layer").
+        const { langs, primary } = song.chart.meta;
+        if (langs.length > 1 && song.langMode === undefined) {
+            const savedMode = localStorage.getItem('chartLang');
+            const otherLang = langs.find(l => l !== primary) || langs[0];
+            const defaultMode = `${shortLang(primary)}-${shortLang(otherLang)}`;
+            song.langMode = (savedMode && isModeAvailable(savedMode, langs)) ? savedMode : defaultMode;
+        } else if (langs.length === 1 && song.langMode === undefined) {
+            song.langMode = shortLang(langs[0]);
+        }
+
     } catch (error) {
         console.error("Error fetching song content:", error);
-        song.originalContent = "Error loading content: " + song.url;
+        song.chart = {
+            meta: { format: 'v1', key: undefined, keyIndex: 0, langs: [], primary: undefined },
+            sections: [{
+                name: null,
+                groups: [{ type: 'v1block', lines: [{ kind: 'other', text: "Error loading content: " + song.url }] }]
+            }]
+        };
         song.originalKeyIndex = 0;
     }
 }
@@ -357,16 +498,43 @@ function renderSongContent(song) {
     const semitones = song.currentKeyIndex - song.originalKeyIndex;
     const KEY_DISPLAY = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
     const escapedTitle = song.title.replace(/'/g, "\\'");
+    const isBilingual = song.chart.meta.langs.length > 1;
+    const hasPinyin = chartHasPinyin(song.chart);
+    const showPinyin = hasPinyin && localStorage.getItem('showPinyin') === 'true';
+    const pinyinMode = showPinyin ? (RUBY_SUPPORTED ? 'ruby' : 'stacked') : 'off';
 
-    let transposedContent = transposeText(song.originalContent, semitones);
-    const headerRegex = /\[((?:Intro|Verse|Pre-Chorus|Chorus|Bridge|Interlude|Tag|Ending|Coda|Outro).*?)\]/gi;
-    transposedContent = transposedContent.replace(headerRegex, '<span class="section-header">[$1]</span>');
+    const chartHtml = renderChart(song.chart, { mode: song.langMode, semitones, pinyin: pinyinMode });
 
     // Key pills — all 12 chromatic keys
     const keyPills = KEY_DISPLAY.map((key, index) => {
         const isActive = index === song.currentKeyIndex;
         return `<button class="key-pill${isActive ? ' active' : ''}" onclick="changeKey('${escapedTitle}', ${index})" aria-label="Key ${key}">${key}</button>`;
     }).join('');
+
+    // Language toggle — reuses the .key-pill pattern, only shown for charts
+    // with more than one language. A mode is disabled when this chart's
+    // langs don't cover it.
+    const langToggleRow = isBilingual ? `
+            <div class="key-selector">
+                <span class="section-header">Language:</span>
+                <div class="key-pills">${LANG_MODES.map(mode => {
+        const available = isModeAvailable(mode, song.chart.meta.langs);
+        const isActive = mode === song.langMode;
+        return `<button class="key-pill${isActive ? ' active' : ''}" ${available ? '' : 'disabled'} onclick="setChartLang('${escapedTitle}', '${mode}')" aria-label="Language ${mode}">${langModeLabel(mode)}</button>`;
+    }).join('')}</div>
+            </div>` : '';
+
+    // Pinyin toggle — only shown when this chart actually has a generated
+    // .pinyin reading on at least one zh-* line (BILINGUAL-SPEC.md §5.6).
+    // A single on/off pill, not a per-mode set like language, since there's
+    // only one thing to toggle.
+    const pinyinToggleRow = hasPinyin ? `
+            <div class="key-selector">
+                <span class="section-header">Pinyin:</span>
+                <div class="key-pills">
+                    <button class="key-pill key-pill-wide${showPinyin ? ' active' : ''}" onclick="togglePinyin('${escapedTitle}')" aria-pressed="${showPinyin}">Show Pinyin</button>
+                </div>
+            </div>` : '';
 
     // Metadata chips — only rendered when optional fields exist in songs.json
     const chips = [];
@@ -402,11 +570,11 @@ function renderSongContent(song) {
             <div class="key-selector">
                 <span class="section-header">Key:</span>
                 <div class="key-pills">${keyPills}</div>
-            </div>
+            </div>${langToggleRow}${pinyinToggleRow}
         </div>
 
         <div class="song-content">
-            <pre>${transposedContent}</pre>
+            ${chartHtml}
             <p class="copyright-notice">${song.title} is the copyrighted property of its owner(s).</p>
         </div>
     `;
@@ -425,103 +593,54 @@ window.changeKey = (title, newKeyIndex) => {
     }
 };
 
-// Transposition Logic
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const NOTES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-function detectKey(text) {
-    // Find the first valid chord
-    const chordRegex = /\b([A-G](?:#|b)?)(m|maj|min|dim|aug|sus|add|7|9|11|13)*(\/[A-G](?:#|b)?)?\b/;
-    const match = text.match(chordRegex);
-
-    if (match) {
-        let root = match[1];
-        let index = NOTES.indexOf(root);
-        if (index === -1) index = NOTES_FLAT.indexOf(root);
-        if (index !== -1) return index;
+window.setChartLang = (title, mode) => {
+    const song = songsData.find(s => s.title === title);
+    if (song) {
+        song.langMode = mode;
+        localStorage.setItem('chartLang', mode);
+        renderSongContent(song);
     }
-    return 0; // Default to C if detection fails
-}
+};
 
-function transposeText(text, semitones) {
-    const lines = text.split('\n');
-
-    // Regex for strict validation of a single token as a chord
-    const strictChordRegex = /^([A-G](?:#|b)?)((?:m|maj|min|dim|aug|sus|add|M|2|4|5|6|7|9|11|13)*)(\/[A-G](?:#|b)?)?$/;
-
-    // Regex for finding/replacing chords within a confirmed chord line
-    const chordRegex = /\b([A-G](?:#|b)?)((?:m|maj|min|dim|aug|sus|add|M|2|4|5|6|7|9|11|13)*)(\/[A-G](?:#|b)?)?(?=\s|$)/g;
-
-    return lines.map(line => {
-        const trimmed = line.trim();
-        if (!trimmed) return line;
-
-        // Check if the line is a "chord line"
-        // A chord line should consist ONLY of valid chords (and spaces)
-        // We split by whitespace to check each token
-        const tokens = trimmed.split(/\s+/);
-
-        // Allow some common non-chord tokens in chord lines if needed, 
-        // but for now, strict check is safest to avoid "A" in lyrics.
-        const isChordLine = tokens.every(token => strictChordRegex.test(token));
-
-        if (isChordLine) {
-            return line.replace(chordRegex, (match, root, suffix, bass) => {
-                // Transpose root
-                let newRoot = transposeNote(root, semitones);
-
-                // Transpose bass if present
-                let newBass = bass ? '/' + transposeNote(bass.substring(1), semitones) : '';
-
-                const chordName = newRoot + (suffix || '') + newBass;
-                return `<span class="chord" data-chord="${chordName}">${chordName}</span>`;
-            });
-        } else {
-            return line; // Return lyrics as-is
-        }
-    }).join('\n');
-}
-
-function transposeNote(note, semitones) {
-    let index = NOTES.indexOf(note);
-    if (index === -1) {
-        index = NOTES_FLAT.indexOf(note);
+// Global, not per-song — one reading-aid preference for the whole site,
+// consistent with how the language mode is remembered via localStorage.
+window.togglePinyin = (title) => {
+    const song = songsData.find(s => s.title === title);
+    if (song) {
+        const next = !(localStorage.getItem('showPinyin') === 'true');
+        localStorage.setItem('showPinyin', String(next));
+        renderSongContent(song);
     }
-    if (index === -1) return note; // Not a note
+};
 
-    let newIndex = (index + semitones) % 12;
-    if (newIndex < 0) newIndex += 12;
-
-    // Prefer sharps for now, or could be smarter based on key
-    return NOTES[newIndex];
-}
-
-
-// Helper to add from detail page
+// Helper to add from detail page. The song-detail page isn't plan-aware, so
+// this always targets the *first* existing entry for the title if one
+// exists — adding a second instance under a different planLabel is a
+// setlist-builder action (the Duplicate button), not this one.
 window.addToSetlist = (title, keyIndex) => {
-    if (!selectedSongs.some(s => s.title === title)) {
-        selectedSongs.push({ title: title, keyIndex: keyIndex });
+    const existing = selectedSongs.find(s => s.title === title);
+    if (!existing) {
+        const song = songsData.find(s => s.title === title);
+        selectedSongs.push(newSetlistEntry(title, keyIndex, song));
         alert(`Added "${title}" to setlist!`);
     } else {
-        // Update key if already exists
-        const storedSong = selectedSongs.find(s => s.title === title);
-        storedSong.keyIndex = keyIndex;
+        existing.keyIndex = keyIndex;
         alert(`Updated "${title}" in setlist!`);
     }
 };
 
-// Helper to add song with fetch for original key
+// Helper to add song with fetch for original key. Adds one entry if this
+// title isn't in the setlist yet; the "add same song again" path is the
+// setlist builder's explicit Duplicate button, not re-adding by title here.
 async function addSongToSetlist(title) {
     const song = songsData.find(s => s.title === title);
     if (!song) return;
     await fetchSongContent(song);
-    // Ensure we don't add duplicates if already present
-    if (!selectedSongs.some(s => s.title === title)) {
-        selectedSongs.push({ title: title, keyIndex: song.originalKeyIndex });
+    const existing = selectedSongs.find(s => s.title === title);
+    if (!existing) {
+        selectedSongs.push(newSetlistEntry(title, song.originalKeyIndex, song));
     } else {
-        // If it exists, just update its key to original
-        const storedSong = selectedSongs.find(s => s.title === title);
-        storedSong.keyIndex = song.originalKeyIndex;
+        existing.keyIndex = song.originalKeyIndex;
     }
 }
 
@@ -529,12 +648,20 @@ async function renderGenerate() {
     // Ensure we have songs loaded
     await loadSongs();
 
+    // Make sure every setlist entry's song has its chart loaded, regardless
+    // of how it was added — the mode selector and section-override list
+    // below need song.chart.meta.langs / .sections to exist.
+    await Promise.all(selectedSongs.map(entry => {
+        const song = songsData.find(s => s.title === entry.title);
+        return song ? fetchSongContent(song) : Promise.resolve();
+    }));
+
     const KEY_DISPLAY = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
     mainContent.innerHTML = `
         <section class="generate-page">
             <h1>Generate Chord Chart</h1>
-            
+
             <div class="add-song-wrapper">
                 <input type="text" id="add-song-input" placeholder="Search to add song..." class="search-input" style="margin-bottom: 0;">
                 <ul id="add-song-suggestions" class="suggestions-list hidden"></ul>
@@ -544,24 +671,57 @@ async function renderGenerate() {
             <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">Drag and drop to reorder songs.</p>
             ${selectedSongs.length > 0 ? `
                 <ul class="selected-list" id="sortable-list">
-                    ${selectedSongs.map((song, index) => {
+                    ${selectedSongs.map((entry) => {
+        const song = songsData.find(s => s.title === entry.title);
+        const isBilingual = !!(song && song.chart && song.chart.meta.langs.length > 1);
+
         const options = KEY_DISPLAY.map((key, kIndex) => {
-            const selected = kIndex === song.keyIndex ? 'selected' : '';
+            const selected = kIndex === entry.keyIndex ? 'selected' : '';
             return `<option value="${kIndex}" ${selected}>${key}</option>`;
         }).join('');
 
+        const langModeRow = isBilingual ? `
+                            <div class="setlist-lang-mode key-pills" data-entry-id="${entry.entryId}">
+                                ${LANG_MODES.map(mode => {
+            const available = isModeAvailable(mode, song.chart.meta.langs);
+            const isActive = mode === entry.langMode;
+            return `<button class="key-pill${isActive ? ' active' : ''}" data-mode="${mode}" ${available ? '' : 'disabled'} onclick="updateSetlistLangMode('${entry.entryId}', '${mode}')" aria-label="Language ${mode}">${langModeLabel(mode)}</button>`;
+        }).join('')}
+                            </div>` : '';
+
+        const sectionOverridesRow = isBilingual ? `
+                            <details class="setlist-section-overrides">
+                                <summary>Per-section language</summary>
+                                ${song.chart.sections.filter(s => s.name).map(s => {
+            const current = (entry.sectionOverrides && entry.sectionOverrides[s.name]) || '';
+            const sectionOptions = ['<option value="">(use song default)</option>']
+                .concat(LANG_MODES.map(mode => `<option value="${mode}" ${mode === current ? 'selected' : ''}>${mode.toUpperCase()}</option>`));
+            return `
+                                <div class="section-override-row">
+                                    <span>${s.name}</span>
+                                    <select onchange="updateSetlistSectionOverride('${entry.entryId}', '${s.name}', this.value)">
+                                        ${sectionOptions.join('')}
+                                    </select>
+                                </div>`;
+        }).join('')}
+                            </details>` : '';
+
         return `
-                        <li draggable="true" data-index="${index}" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; cursor: grab; background: var(--bg-card); padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color);">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="color: var(--text-muted); cursor: grab;">☰</span>
-                                <span>${song.title}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <select onchange="updateSetlistKey('${song.title}', this.value)" class="key-select" style="padding: 0.25rem;">
-                                    ${options}
-                                </select>
-                                <button onclick="removeFromSetlist('${song.title}')" class="remove-btn">x</button>
-                            </div>
+                        <li draggable="true" data-entry-id="${entry.entryId}" style="cursor: grab;">
+                            <div class="setlist-row-top">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="color: var(--text-muted); cursor: grab;">☰</span>
+                                    <span>${song ? song.title : entry.title}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="text" class="setlist-plan-label" placeholder="Main" value="${entry.planLabel || ''}" onchange="updateSetlistPlanLabel('${entry.entryId}', this.value)">
+                                    <select onchange="updateSetlistKey('${entry.entryId}', this.value)" class="key-select" style="padding: 0.25rem;">
+                                        ${options}
+                                    </select>
+                                    <button onclick="duplicateSetlistEntry('${entry.entryId}')" class="remove-btn" aria-label="Duplicate" title="Duplicate for another plan slot">⧉</button>
+                                    <button onclick="removeFromSetlist('${entry.entryId}')" class="remove-btn" aria-label="Remove">x</button>
+                                </div>
+                            </div>${langModeRow}${sectionOverridesRow}
                         </li>`;
     }).join('')}
                 </ul>
@@ -693,29 +853,231 @@ function updateArrayFromDOM() {
     const listItems = document.querySelectorAll('#sortable-list li');
     const newOrder = [];
     listItems.forEach(item => {
-        const title = item.querySelector('span:nth-child(2)').innerText; // 2nd span is title
-        // Find the song object in the old array to preserve keyIndex
-        const songObj = selectedSongs.find(s => s.title === title);
-        if (songObj) {
-            newOrder.push(songObj);
+        const entryId = item.dataset.entryId;
+        const entry = selectedSongs.find(s => s.entryId === entryId);
+        if (entry) {
+            newOrder.push(entry);
         }
     });
     selectedSongs = newOrder;
     // No need to re-render immediately as DOM is already correct, but good practice to ensure sync
-    // renderGenerate(); 
+    // renderGenerate();
 }
 
-window.updateSetlistKey = (title, newKeyIndex) => {
-    const song = selectedSongs.find(s => s.title === title);
-    if (song) {
-        song.keyIndex = parseInt(newKeyIndex);
+window.updateSetlistKey = (entryId, newKeyIndex) => {
+    const entry = selectedSongs.find(s => s.entryId === entryId);
+    if (entry) {
+        entry.keyIndex = parseInt(newKeyIndex);
     }
 };
 
-window.removeFromSetlist = (title) => {
-    selectedSongs = selectedSongs.filter(s => s.title !== title);
+window.removeFromSetlist = (entryId) => {
+    selectedSongs = selectedSongs.filter(s => s.entryId !== entryId);
     renderGenerate();
 };
+
+window.duplicateSetlistEntry = (entryId) => {
+    const entry = selectedSongs.find(s => s.entryId === entryId);
+    if (!entry) return;
+    const index = selectedSongs.indexOf(entry);
+    const copy = { ...entry, entryId: crypto.randomUUID(), planLabel: '' };
+    if (entry.sectionOverrides) copy.sectionOverrides = { ...entry.sectionOverrides };
+    selectedSongs.splice(index + 1, 0, copy);
+    renderGenerate();
+};
+
+window.updateSetlistPlanLabel = (entryId, label) => {
+    const entry = selectedSongs.find(s => s.entryId === entryId);
+    if (entry) entry.planLabel = label;
+};
+
+window.updateSetlistLangMode = (entryId, mode) => {
+    const entry = selectedSongs.find(s => s.entryId === entryId);
+    if (!entry) return;
+    entry.langMode = mode;
+    document.querySelectorAll(`.setlist-lang-mode[data-entry-id="${entryId}"] .key-pill`).forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+};
+
+window.updateSetlistSectionOverride = (entryId, sectionName, mode) => {
+    const entry = selectedSongs.find(s => s.entryId === entryId);
+    if (!entry) return;
+    if (!entry.sectionOverrides) entry.sectionOverrides = {};
+    if (mode) {
+        entry.sectionOverrides[sectionName] = mode;
+    } else {
+        delete entry.sectionOverrides[sectionName];
+    }
+};
+
+// ── docx export helpers ──
+// generateDoc() below walks the parsed (and transposed) Chart AST directly
+// — no more regex-scraping renderChart()'s HTML output.
+
+const DOCX_RUN = { font: 'Courier New', size: 24 }; // 12pt
+const SECTION_HEADER_LINE_DOC = new RegExp(`^\\[((?:${SECTION_HEADERS.join('|')}).*?)\\]$`, 'i');
+const MODE_LANGS_FOR_EXPORT = { en: ['en'], zh: ['zh'], 'en-zh': ['en', 'zh'], 'zh-en': ['zh', 'en'] };
+
+// Word just needs a font *name* to attempt — it substitutes on the opening
+// machine if that face isn't installed, so this doesn't need to embed
+// anything, just pick a name that's actually script-correct rather than one
+// generic guess for both scripts.
+const CJK_FONT_BY_SCRIPT = { hans: 'Microsoft YaHei', hant: 'Microsoft JhengHei' };
+
+function cjkFontForLangs(langs) {
+    const zhTag = (langs || []).find(l => l.toLowerCase().startsWith('zh'));
+    if (zhTag && zhTag.toLowerCase().includes('hans')) return CJK_FONT_BY_SCRIPT.hans;
+    if (zhTag && zhTag.toLowerCase().includes('hant')) return CJK_FONT_BY_SCRIPT.hant;
+    return 'SimSun';
+}
+
+function effectiveModeForSection(entry, sectionName) {
+    return (entry.sectionOverrides && entry.sectionOverrides[sectionName]) || entry.langMode || 'en';
+}
+
+// Splices bold blue chord runs in at each pre-parsed token's offset —
+// exactly chart-render.js's spliceChordSpans, but building TextRuns instead
+// of <span> markup, from the same already-transposed tokens.
+function buildV1ChordRuns(line) {
+    const { TextRun } = window.docx;
+    const runs = [];
+    let lastIndex = 0;
+    for (const token of line.tokens) {
+        if (token.start > lastIndex) {
+            runs.push(new TextRun({ text: line.text.slice(lastIndex, token.start), ...DOCX_RUN }));
+        }
+        runs.push(new TextRun({ text: token.value, bold: true, color: '0000FF', ...DOCX_RUN }));
+        lastIndex = token.end;
+    }
+    if (lastIndex < line.text.length) {
+        runs.push(new TextRun({ text: line.text.slice(lastIndex), ...DOCX_RUN }));
+    }
+    return runs;
+}
+
+function buildV1DocBody(chart) {
+    const { Paragraph, TextRun } = window.docx;
+    const paragraphs = [];
+    const allLines = chart.sections.flatMap(s => s.groups.flatMap(g => g.lines));
+
+    for (const line of allLines) {
+        const trimmed = line.text.trim();
+        if (!trimmed) {
+            paragraphs.push(new Paragraph({ children: [] }));
+        } else if (line.kind === 'chord') {
+            paragraphs.push(new Paragraph({ children: buildV1ChordRuns(line), spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' } }));
+        } else if (SECTION_HEADER_LINE_DOC.test(trimmed)) {
+            paragraphs.push(new Paragraph({
+                children: [new TextRun({ text: trimmed, bold: true, ...DOCX_RUN })],
+                spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' }
+            }));
+        } else {
+            paragraphs.push(new Paragraph({
+                children: [new TextRun({ text: line.text, ...DOCX_RUN })],
+                spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' }
+            }));
+        }
+    }
+    return paragraphs;
+}
+
+// Chosen layout (see the plan): one shared chord-sequence line per group —
+// the chord *sequence* is validator-guaranteed identical across a group's
+// language lines (BILINGUAL-SPEC.md §5.2), so reading it off the first line
+// is never lossy — followed by each language actually selected by the
+// entry's effective mode for that section, in its own font.
+function buildV2DocBody(chart, entry, cjkFont) {
+    const { Paragraph, TextRun } = window.docx;
+    const paragraphs = [];
+    const spacingProps = { before: 0, after: 0, line: 240, lineRule: 'auto' };
+
+    for (const section of chart.sections) {
+        if (section.name) {
+            paragraphs.push(new Paragraph({
+                children: [new TextRun({ text: `[${section.name}]`, bold: true, ...DOCX_RUN })],
+                spacing: spacingProps
+            }));
+        }
+
+        const wanted = MODE_LANGS_FOR_EXPORT[effectiveModeForSection(entry, section.name)] || ['en'];
+
+        for (const group of section.groups) {
+            if (group.type === 'note') {
+                paragraphs.push(new Paragraph({
+                    children: [new TextRun({ text: group.text, italics: true, ...DOCX_RUN })],
+                    spacing: spacingProps
+                }));
+                continue;
+            }
+
+            if (group.type === 'chordline') {
+                const runs = [];
+                group.tokens.forEach((t, i) => {
+                    if (i > 0) runs.push(new TextRun({ text: ' ', ...DOCX_RUN }));
+                    runs.push(t.type === 'chord'
+                        ? new TextRun({ text: t.value, bold: true, color: '0000FF', ...DOCX_RUN })
+                        : new TextRun({ text: t.value, ...DOCX_RUN }));
+                });
+                paragraphs.push(new Paragraph({ children: runs, spacing: spacingProps }));
+                continue;
+            }
+
+            // group.type === 'lyric'
+            const chordSeq = (group.lines[0]?.units || []).filter(u => u.chord).map(u => u.chord);
+            if (chordSeq.length > 0) {
+                const runs = [];
+                chordSeq.forEach((chord, i) => {
+                    if (i > 0) runs.push(new TextRun({ text: '    ', ...DOCX_RUN }));
+                    runs.push(new TextRun({ text: chord, bold: true, color: '0000FF', ...DOCX_RUN }));
+                });
+                paragraphs.push(new Paragraph({ children: runs, spacing: spacingProps }));
+            }
+
+            for (const shortLang of wanted) {
+                const line = group.lines.find(l => l.lang.toLowerCase().startsWith(shortLang));
+                if (!line) continue;
+                const text = line.units.map(u => u.text).join('');
+                const font = shortLang === 'zh' ? cjkFont : DOCX_RUN.font;
+                paragraphs.push(new Paragraph({
+                    children: [new TextRun({ text, font, size: DOCX_RUN.size })],
+                    spacing: spacingProps
+                }));
+            }
+        }
+    }
+    return paragraphs;
+}
+
+// Item 4: a Song Order table at the top of each bilingual song — section
+// name (+ any {note:} annotations from the chart) and the effective
+// language for that section, matching the two-column, header-row layout
+// reverse-engineered from a real service pack (tools/docx-to-chart.mjs).
+function buildSongOrderTable(chart, entry) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType } = window.docx;
+    const namedSections = chart.sections.filter(s => s.name);
+    if (namedSections.length === 0) return null;
+
+    const cellText = (text, opts = {}) => new Paragraph({ children: [new TextRun({ text, ...DOCX_RUN, ...opts })] });
+
+    const headerRow = new TableRow({
+        children: [new TableCell({ columnSpan: 2, children: [cellText('Song Order:', { bold: true })] })]
+    });
+
+    const rows = namedSections.map(section => {
+        const notes = section.groups.filter(g => g.type === 'note').map(g => g.text);
+        const label = notes.length ? `${section.name} *${notes.join('; ')}` : section.name;
+        const mode = effectiveModeForSection(entry, section.name);
+        return new TableRow({
+            children: [
+                new TableCell({ children: [cellText(label, { bold: true })] }),
+                new TableCell({ children: [cellText(mode.toUpperCase())] })
+            ]
+        });
+    });
+
+    return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...rows] });
+}
 
 window.generateDoc = async () => {
     if (selectedSongs.length === 0) return;
@@ -731,137 +1093,48 @@ window.generateDoc = async () => {
             throw new Error("docx library not loaded. Please check your internet connection.");
         }
 
-        const { Document, Packer, Paragraph, TextRun, SectionType, ColumnBreak } = window.docx;
+        const { Document, Packer, Paragraph, TextRun } = window.docx;
         const children = [];
 
-        // Title Paragraph
+        for (const entry of selectedSongs) {
+            const song = songsData.find(s => s.title === entry.title);
+            if (!song) continue;
 
+            await fetchSongContent(song);
 
-        for (const songObj of selectedSongs) {
-            const title = songObj.title;
-            const song = songsData.find(s => s.title === title);
-            if (song) {
-                await fetchSongContent(song);
-                const targetKeyIndex = songObj.keyIndex;
+            const originalKeyIndex = song.originalKeyIndex !== undefined ? song.originalKeyIndex : 0;
+            const semitones = entry.keyIndex - originalKeyIndex;
+            const transposedChart = transposeChart(song.chart, semitones);
+            const isBilingual = transposedChart.meta.format === 'v2';
 
-                // If fetchSongContent failed to get originalKeyIndex (e.g. error), default to 0
-                const originalKeyIndex = song.originalKeyIndex !== undefined ? song.originalKeyIndex : 0;
-                const semitones = targetKeyIndex - originalKeyIndex;
+            // Song Title (+ plan label, when this is a duplicate entry for a
+            // different service slot)
+            const titleText = entry.planLabel ? `${entry.title} (${entry.planLabel})` : entry.title;
+            children.push(new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `${titleText} [${transposedChart.meta.key}]`.toUpperCase(),
+                        bold: true,
+                        ...DOCX_RUN
+                    })
+                ],
+                spacing: { before: 0, after: 0, line: 240, lineRule: "auto" },
+                keepNext: true
+            }));
 
-                // Transpose
-                let transposed = transposeText(song.originalContent, semitones);
-
-                // Get Key Name
-                const KEY_DISPLAY = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-                const keyName = KEY_DISPLAY[targetKeyIndex];
-
-                // Song Title
-                children.push(new Paragraph({
-                    children: [
-                        new TextRun({
-                            text: `${title} [${keyName}]`.toUpperCase(),
-                            bold: true,
-                            size: 24, // 12pt
-                            font: "Courier New"
-                        })
-                    ],
-                    spacing: { before: 0, after: 0, line: 240, lineRule: "auto" },
-                    keepNext: true
-                }));
-
-                // Process lines
-                const lines = transposed.split('\n');
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed) {
-                        children.push(new Paragraph({ children: [] })); // Empty line
-                        continue;
-                    }
-
-                    // Check for Section Header
-                    const headerMatch = trimmed.match(/^\[((?:Intro|Verse|Pre-Chorus|Chorus|Bridge|Interlude|Tag|Ending|Coda|Outro).*?)\]$/i);
-                    if (headerMatch) {
-                        children.push(new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: trimmed,
-                                    bold: true,
-                                    font: "Courier New",
-                                    size: 24 // 12pt
-                                })
-                            ],
-                            spacing: { before: 0, after: 0, line: 240, lineRule: "auto" }
-                        }));
-                        continue;
-                    }
-
-                    // Check for Chords (using the same strict regex logic or parsing the HTML from transposeText)
-                    // Since transposeText returns HTML with spans, we should parse that!
-                    // But wait, transposeText returns a string with HTML tags. 
-                    // Let's re-run the logic or parse the string. 
-                    // Parsing the string is safer to match exactly what is shown.
-
-                    // Simple parser for <span class="chord">...</span> and <span class="section-header">...</span>
-                    // Note: transposeText output might contain multiple spans in one line.
-
-                    const runs = [];
-                    let lastIndex = 0;
-                    const tagRegex = /<span class="([^"]+)"[^>]*>([^<]+)<\/span>/g;
-                    let match;
-
-                    while ((match = tagRegex.exec(line)) !== null) {
-                        // Text before the tag
-                        if (match.index > lastIndex) {
-                            runs.push(new TextRun({
-                                text: line.substring(lastIndex, match.index),
-                                font: "Courier New",
-                                size: 24
-                            }));
-                        }
-
-                        const type = match[1]; // "chord" or "section-header"
-                        const content = match[2];
-
-                        if (type === 'chord') {
-                            runs.push(new TextRun({
-                                text: content,
-                                bold: true,
-                                color: "0000FF", // Blue
-                                font: "Courier New",
-                                size: 24
-                            }));
-                        } else if (type === 'section-header') {
-                            runs.push(new TextRun({
-                                text: content,
-                                bold: true,
-                                color: "000000",
-                                font: "Courier New",
-                                size: 24
-                            }));
-                        }
-
-                        lastIndex = tagRegex.lastIndex;
-                    }
-
-                    // Remaining text
-                    if (lastIndex < line.length) {
-                        runs.push(new TextRun({
-                            text: line.substring(lastIndex),
-                            font: "Courier New",
-                            size: 24
-                        }));
-                    }
-
-                    children.push(new Paragraph({
-                        children: runs,
-                        spacing: { before: 0, after: 0, line: 240, lineRule: "auto" }
-                    }));
-                }
-
-
-
-                children.push(new Paragraph({ children: [] }));
+            if (isBilingual) {
+                const table = buildSongOrderTable(transposedChart, entry);
+                if (table) children.push(table);
+                children.push(...buildV2DocBody(transposedChart, entry, cjkFontForLangs(transposedChart.meta.langs)));
+            } else {
+                children.push(...buildV1DocBody(transposedChart));
             }
+
+            children.push(new Paragraph({ children: [] }));
+        }
+
+        if (children.length === 0) {
+            return;
         }
 
         const doc = new Document({
@@ -922,14 +1195,14 @@ function renderAbout() {
     mainContent.innerHTML = `
         <section class="about-page">
             <h1 style="text-align: center; margin-bottom: 2rem;">About GEAR</h1>
-            
+
             <div class="about-container">
                 <!-- About Site Card -->
                 <div class="about-card">
                     <h2>The Project</h2>
                     <p>My name is <strong>Ryan</strong>. This site is developed by me as a personal project for the praise ministry of <strong>Church Of the True Light (COTL)</strong>, where I currently serve.</p>
                     <p>The purpose of this site is to host our repertoire of praise songs.</p>
-                    
+
                     <div class="alert-box">
                         <strong>Note:</strong> All songs hosted on this site do not belong to me. They are the copyrighted properties of their owner(s).
                     </div>
@@ -951,11 +1224,11 @@ function renderAbout() {
                         <strong>Email:</strong> <a href="mailto:mail@truelight.org.sg">mail@truelight.org.sg</a><br>
                         <strong>Website:</strong> <a href="https://www.truelight.org.sg/" target="_blank">www.truelight.org.sg</a>
                     </p>
-                    
+
                     <div style="margin-top: 1.5rem; text-align: center;">
                         <a href="https://www.truelight.org.sg/service-timings/" target="_blank" class="btn btn-secondary" style="margin-bottom: 1rem;">View Service Timings</a>
                     </div>
-                    
+
                     <!-- Google Map -->
                     <div style="width: 100%; height: 300px; border-radius: 0.5rem; overflow: hidden; border: 1px solid var(--border-color);">
                         <iframe width="100%" height="100%" src="https://maps.google.com/maps?q=Church+Of+the+True+Light+Singapore&t=&z=15&ie=UTF8&iwloc=&output=embed" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>
@@ -1069,14 +1342,14 @@ const CHORD_FINGERINGS = {
     "C/E": [0, 3, 2, 0, 1, 0],
     "D/F#": [2, 0, 0, 2, 3, 2], // Thumb over
     "A/C#": [-1, 4, 2, 2, 2, 0],
-    "E/G#": [4, 2, 2, 1, 0, 0], // often played as [4, 7, 6, 4, 5, 4] barre, but open variant harder. 
+    "E/G#": [4, 2, 2, 1, 0, 0], // often played as [4, 7, 6, 4, 5, 4] barre, but open variant harder.
     // Let's us specific shapings for simple ones
     "F/A": [-1, 0, 3, 2, 1, 1],
     "Bb/D": [-1, -1, 0, 3, 3, 1],
     "Dsus/F#": [2, 0, 0, 2, 3, 3], // Thumb over F#, sus4
     "E2/F#": [2, 2, 2, 1, 0, 0], // F#m11-ish voicing often used for E2/F# in worship context, or correct E2 with F# bass
-    // Better E2/F#: F# (2) + E (open) is clashing? 
-    // Worship E2/F# is often 2x2100 (F#m7add11) acting as E/F#. 
+    // Better E2/F#: F# (2) + E (open) is clashing?
+    // Worship E2/F# is often 2x2100 (F#m7add11) acting as E/F#.
     // Or strictly Eadd2/F# -> 2 2 4 1 0 0. Let's strive for the "worship open" sound.
     // 2 (F#) - 2 (B) - 2 (E) - 1 (G#) - 0 (B) - 0 (E). This is F#m11.
     // A true E2/F# implies F# bass, E, G#, B, F#.
@@ -1314,4 +1587,3 @@ window.addEventListener('DOMContentLoaded', initChordTooltip);
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
     initChordTooltip();
 }
-

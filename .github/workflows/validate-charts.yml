@@ -1,0 +1,25 @@
+name: Validate charts
+
+# Validation only — this workflow never builds or deploys anything. The
+# site deploys from the gh-pages branch by a separate, unrelated process;
+# nothing here touches that.
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # tools/validate-charts.mjs imports only Node's standard library and
+      # the site's own js/ modules (chart-parser.js, chart-constants.js,
+      # chord-theory.js) — no npm package is involved, so there is nothing
+      # to install before running it.
+      - name: Validate chord charts (BILINGUAL-SPEC.md §8)
+        run: node tools/validate-charts.mjs

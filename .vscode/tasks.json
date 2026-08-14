@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "serve",
+            "type": "shell",
+            "command": "npx",
+            "args": ["serve", "."],
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "dedicated" },
+            "detail": "hash routing and fetch('data/songs.json') both need http://, not file://"
+        },
+        {
+            "label": "build-index",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/build-index.mjs"],
+            "problemMatcher": [],
+            "detail": "regenerates titleZhAlt/pinyin/pinyinInitials and chart py: lines — run after editing titleZh or pinyin-exceptions.json"
+        },
+        {
+            "label": "validate-charts",
+            "type": "shell",
+            "command": "node",
+            "args": ["tools/validate-charts.mjs"],
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": [],
+            "detail": "same check CI runs on push/PR — run it locally before pushing so failures surface before the Actions run"
+        }
+    ]
+}

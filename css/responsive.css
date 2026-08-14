@@ -89,6 +89,14 @@
         font-size: 0.875rem;
     }
 
+    .chart-v2 {
+        font-size: 0.875rem;
+    }
+
+    .chord-line {
+        font-size: 0.8125rem;
+    }
+
     .transposition-controls {
         flex-wrap: wrap;
         width: 100%;

@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "charts/**/*.html": "html"
+    },
+    "search.exclude": {
+        "**/.git": true,
+        "**/node_modules": true
+    },
+    "[html]": {
+        "files.trimTrailingWhitespace": false
+    },
+    "files.encoding": "utf8",
+    "files.autoGuessEncoding": false
+}

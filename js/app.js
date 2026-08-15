@@ -2,7 +2,7 @@
 
 import { parseChartBody } from './chart-parser.js';
 import { renderChart, transposeChart } from './chart-render.js';
-import { SECTION_HEADERS } from './chart-constants.js';
+import { matchSectionHeader } from './chart-constants.js';
 
 // Theme Toggle Logic
 const themeToggle = document.getElementById('theme-toggle');
@@ -916,7 +916,10 @@ window.updateSetlistSectionOverride = (entryId, sectionName, mode) => {
 // — no more regex-scraping renderChart()'s HTML output.
 
 const DOCX_RUN = { font: 'Courier New', size: 24 }; // 12pt
-const SECTION_HEADER_LINE_DOC = new RegExp(`^\\[((?:${SECTION_HEADERS.join('|')}).*?)\\]$`, 'i');
+function isSectionHeaderLineDoc(line) {
+    const m = line.match(/^\[(.+)\]$/);
+    return !!m && matchSectionHeader(m[1]) !== null;
+}
 const MODE_LANGS_FOR_EXPORT = { en: ['en'], zh: ['zh'], 'en-zh': ['en', 'zh'], 'zh-en': ['zh', 'en'] };
 
 // Word just needs a font *name* to attempt — it substitutes on the opening
@@ -967,7 +970,7 @@ function buildV1DocBody(chart) {
             paragraphs.push(new Paragraph({ children: [] }));
         } else if (line.kind === 'chord') {
             paragraphs.push(new Paragraph({ children: buildV1ChordRuns(line), spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' } }));
-        } else if (SECTION_HEADER_LINE_DOC.test(trimmed)) {
+        } else if (isSectionHeaderLineDoc(trimmed)) {
             paragraphs.push(new Paragraph({
                 children: [new TextRun({ text: trimmed, bold: true, ...DOCX_RUN })],
                 spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' }

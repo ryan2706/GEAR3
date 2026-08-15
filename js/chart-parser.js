@@ -32,9 +32,17 @@
 // order, not its own inline-bracket-parsed unit list like en:/zh: lines.
 
 import { NOTES, NOTES_FLAT } from './chord-theory.js';
-import { SECTION_HEADERS } from './chart-constants.js';
+import { matchSectionHeader } from './chart-constants.js';
 
-const SECTION_HEADER_LINE = new RegExp(`^\\[((?:${SECTION_HEADERS.join('|')}).*?)\\]$`, 'i');
+const BARE_BRACKET_LINE = /^\[(.+)\]$/;
+
+// Returns the canonical display form ("Pre-Chorus", "Verse 1", "High
+// Praise") if `line` is a recognized section header, null otherwise —
+// case- and separator-insensitively (chart-constants.js §5.1).
+function parseSectionHeader(line) {
+    const m = line.match(BARE_BRACKET_LINE);
+    return m ? matchSectionHeader(m[1]) : null;
+}
 
 // Same chord grammar as today's app.js — reused for classifying whole lines
 // (v1) and for chord-only-line tokens / inline [chord] units (v2).
@@ -86,12 +94,12 @@ function parseV1Body(text, meta, startLine = 1) {
     rawLines.forEach((rawLine, i) => {
         const lineNumber = startLine + i;
         const trimmed = rawLine.trim();
-        if (SECTION_HEADER_LINE.test(trimmed)) {
+        const headerName = parseSectionHeader(trimmed);
+        if (headerName !== null) {
             if (current.groups[0].lines.length > 0 || current.name !== null) {
                 sections.push(current);
             }
-            const name = trimmed.match(SECTION_HEADER_LINE)[1];
-            current = { name, groups: [{ type: 'v1block', lines: [] }] };
+            current = { name: headerName, groups: [{ type: 'v1block', lines: [] }] };
         }
         // Pushed unconditionally, including header lines themselves, into
         // whichever section is current at this point in the loop — this is
@@ -105,7 +113,7 @@ function parseV1Body(text, meta, startLine = 1) {
 
 // ── v2 ──
 
-const NOTE_LINE = /^\{(note|repeat):\s*(.*)\}$/i;
+const NOTE_LINE = /^\{(note|repeat|goto|segue):\s*(.*)\}$/i;
 const PINYIN_LINE = /^py:\s*(.*)$/i;
 const LANG_LINE = /^([a-zA-Z]{2,3}(?:-[A-Za-z]+)?):\s*(.*)$/;
 const INLINE_CHORD = /\[([^\]]+)\]/g;
@@ -183,13 +191,14 @@ function parseV2Body(rawBody, meta, startLine = 1) {
             continue;
         }
 
-        if (SECTION_HEADER_LINE.test(line)) {
+        const headerName = parseSectionHeader(line);
+        if (headerName !== null) {
             flushLyricGroup(currentSection, pendingLines);
             pendingLines = [];
             if (currentSection.name !== null || currentSection.groups.length > 0) {
                 sections.push(currentSection);
             }
-            currentSection = newSection(line.match(SECTION_HEADER_LINE)[1]);
+            currentSection = newSection(headerName);
             continue;
         }
 

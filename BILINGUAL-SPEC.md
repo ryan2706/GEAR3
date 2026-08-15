@@ -105,11 +105,21 @@ A line whose entire trimmed content is a bracketed section name:
 ```
 [Intro]  [Verse]  [Verse 1]  [Pre-Chorus]  [Chorus 1]  [Bridge]
 [Interlude]  [Tag]  [Instrumental]  [Ending]  [Coda]  [Outro]
+[Turnaround]  [End]  [Final Chorus]  [Echo]  [High Praise]
 ```
 
 Same allow-list your v1 renderer already uses. Anything else in brackets on its own line
 is a validation error, not a header — that's what keeps section headers and inline chords
 unambiguous.
+
+Matching is case- and separator-insensitive: `[high-praise]`, `[HIGH_PRAISE]`, and
+`[High Praise]` are the same header. A number or short free-text suffix is allowed after
+the header word, separated or not (`[Verse1]`, `[Chorus 2]`, `[Bridge tag]`) — the suffix
+is kept verbatim, only the header word itself is canonicalized. Whatever spelling a chart
+author used, the parser, renderer, and validator all agree on one canonical display form
+(`Pre-Chorus`, `High Praise`, …) — `js/chart-constants.js`'s `matchSectionHeader()` is the
+single implementation all three call, so this can't drift into three slightly-different
+regexes the way it did before.
 
 ### 5.2 Lyric lines
 
@@ -150,10 +160,20 @@ language modes.
 {note: Drums in}
 {note: Guitar & Keys hold A at the end}
 {repeat: x2}
+{goto: Chorus}
+{segue: Amazing Grace}
 ```
 
 Rendered as an italic aside, never transposed, excluded from language filtering. These are
 the `*Drums in*` / `*Soft*` annotations from your Word doc's Song Order table.
+
+`{goto: <section>}` is a navigation cue to a section elsewhere in the same chart ("go back
+to the Chorus"), replacing what used to get hand-written as a fake section header like
+`[To Chorus]` — those aren't section names, and forcing them through the §5.1 allow-list
+was never right. `{segue: <title>}` is the same idea pointed at a *different* song ("go
+straight into I Have Decided to Follow Jesus") rather than a section of this one. Neither
+is validated against the section allow-list or any other chart's contents — `<section>` and
+`<title>` are free text, exactly like `{note: ...}`'s.
 
 ### 5.5 Comments
 
@@ -292,10 +312,13 @@ Mandarin-only songs use `title` for the Chinese name and set `langs: ["zh-Hans"]
 
 1. Every chart parses.
 2. Every bracketed token matches `^[A-G](#|b)?(m|maj|min|dim|aug|sus|add|M|[2456791113])*(/[A-G](#|b)?)?$`.
-3. Every bare-bracket line is in the §5.1 section allow-list.
+3. Every bare-bracket line is in the §5.1 section allow-list (case- and separator-
+   insensitive match).
 4. Within a line group, all language lines carry the **same chord sequence**. This is the
    one drift risk the format introduces; catching it in CI is what makes duplication safe.
-5. `data-key` is a real key and appears as the first chord or is reachable from it.
+5. `data-key` is a real key, and the chart's first chord is diatonic to it or a common
+   borrowed chord (bVI, bVII) — not a strict first-chord-equals-key match, since worship
+   charts routinely open on an intro/pickup chord (IV, V, vi) rather than the tonic.
 6. Every `songs.json` `url` resolves to a file on disk, and every chart file appears in
    `songs.json`. (Worth running against your current 308 too — orphans accumulate.)
 7. No non-ASCII bytes in any path under `charts/`.

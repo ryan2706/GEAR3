@@ -52,7 +52,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseChartBody } from '../js/chart-parser.js';
-import { SECTION_HEADERS } from '../js/chart-constants.js';
+import { matchSectionHeader } from '../js/chart-constants.js';
 import { NOTES, NOTES_FLAT } from '../js/chord-theory.js';
 import { extractPre } from './lib/chart-file.mjs';
 
@@ -96,8 +96,7 @@ async function walkFiles(dir) {
 // Verbatim from BILINGUAL-SPEC.md §8 rule 2.
 const RULE2_CHORD_RE = /^[A-G](#|b)?(m|maj|min|dim|aug|sus|add|M|[2456791113])*(\/[A-G](#|b)?)?$/;
 
-const BARE_BRACKET_LINE = /^\[.+\]$/;
-const SECTION_HEADER_LINE = new RegExp(`^\\[((?:${SECTION_HEADERS.join('|')}).*?)\\]$`, 'i');
+const BARE_BRACKET_LINE = /^\[(.+)\]$/;
 
 // ── rule 5 helpers ──
 
@@ -199,11 +198,14 @@ async function validateChartFile(filePath) {
 
     // Rule 3 — scan every line in the file (not just the body: a bracket
     // line stray outside <pre> would be just as invalid). Section headers
-    // that are actually valid never reach here since they pass
-    // SECTION_HEADER_LINE.
+    // that are actually valid never reach here since matchSectionHeader()
+    // recognizes them (case- and separator-insensitively, BILINGUAL-SPEC.md
+    // §5.1) — the same function the parser and renderer use, so "valid to
+    // the validator" and "valid on the live site" can't drift apart.
     content.split('\n').forEach((rawLine, i) => {
         const trimmed = rawLine.trim();
-        if (BARE_BRACKET_LINE.test(trimmed) && !SECTION_HEADER_LINE.test(trimmed)) {
+        const m = trimmed.match(BARE_BRACKET_LINE);
+        if (m && matchSectionHeader(m[1]) === null) {
             report('FAIL', 3, filePath, i + 1, `"${trimmed}" is not a recognized section header (BILINGUAL-SPEC.md §5.1)`);
         }
     });

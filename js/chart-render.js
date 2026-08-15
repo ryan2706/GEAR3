@@ -9,7 +9,7 @@
 // transposition implementation.
 
 import { transposeNote } from './chord-theory.js';
-import { SECTION_HEADERS } from './chart-constants.js';
+import { matchSectionHeader } from './chart-constants.js';
 
 const KEY_DISPLAY = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
@@ -129,14 +129,25 @@ function spliceChordSpans(line) {
     return result;
 }
 
+// Per-line (not a global regex over the joined text, per chart-constants.js's
+// matchSectionHeader — it needs the bracket's full trimmed content, not an
+// arbitrary substring) so a recognized header renders in its canonical form
+// ("[high-praise]" → "[High Praise]") even though the parser (which decides
+// section.name) and this renderer (which decides what's on screen) are two
+// separate passes over the same source line.
 function renderV1(chart) {
     const allLines = chart.sections.flatMap(s => s.groups.flatMap(g => g.lines));
-    let joined = allLines
-        .map(line => line.kind === 'chord' ? spliceChordSpans(line) : line.text)
+    const joined = allLines
+        .map(line => {
+            if (line.kind === 'chord') return spliceChordSpans(line);
+            const trimmed = line.text.trim();
+            const bracket = trimmed.match(/^\[(.+)\]$/);
+            const canon = bracket ? matchSectionHeader(bracket[1]) : null;
+            return canon !== null
+                ? line.text.replace(trimmed, `<span class="section-header">[${canon}]</span>`)
+                : line.text;
+        })
         .join('\n');
-
-    const headerRegex = new RegExp(`\\[((?:${SECTION_HEADERS.join('|')}).*?)\\]`, 'gi');
-    joined = joined.replace(headerRegex, '<span class="section-header">[$1]</span>');
 
     return `<pre>${joined}</pre>`;
 }

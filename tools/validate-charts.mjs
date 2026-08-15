@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // tools/validate-charts.mjs
 //
-// Implements BILINGUAL-SPEC.md §8's seven validator rules. Node stdlib only
+// Implements BILINGUAL-SPEC.md §8's eight validator rules. Node stdlib only
 // — no npm dependencies. Reuses the site's own chart-parser.js (via its
 // DOM-independent parseChartBody() export) rather than reimplementing the
 // v1/v2 grammar a second time, so "does this chart parse" means exactly
@@ -13,11 +13,12 @@
 //   node tools/validate-charts.mjs
 //
 // No flags, no config. Exits 1 if any rule 1-4 or 7 violation is found
-// (these fail CI), exits 0 otherwise — rules 5-6 are warnings and never
-// affect the exit code, per the brief ("fail on 1-4 and 7, warn on 5-6").
-// Every violation line names the file and line number.
+// (these fail CI), exits 0 otherwise — rules 5-6 and 8 are warnings and
+// never affect the exit code, per the brief ("fail on 1-4 and 7, warn on
+// 5-6", extended to warn on 8 too — see its note below). Every violation
+// line names the file and line number.
 //
-// ── The seven rules ──
+// ── The eight rules ──
 //   1. Every chart parses.
 //   2. Every inline [chord] token matches the chord grammar.
 //   3. Every bare-bracket line is a recognized section name.
@@ -26,6 +27,8 @@
 //      to it or a common borrowed chord (bVI, bVII).
 //   6. (warn) songs.json <-> charts/ are mutually consistent.
 //   7. No non-ASCII bytes in any path under charts/.
+//   8. (warn) every chord in a section following a {modulate: n} marker is
+//      diatonic to data-key transposed by n, or a common borrowed chord.
 //
 // ── Notes on interpretation ──
 // Rule 1: chart-parser.js's v1/v2 body-parsers are deliberately lenient
@@ -47,11 +50,17 @@
 // its target, and a fifth above any diatonic scale degree lands back on a
 // diatonic degree for every target except vii° (V/vii, the tritone degree,
 // stays flagged — rare enough in practice that it's still worth a look).
+// Rule 8: same diatonic-or-borrowed check as rule 5, applied to every chord
+// in a section rather than just the chart's first one — reusing rule 5's
+// leniency here would defeat the point, since the whole reason to check a
+// modulated section is to catch a chord that's still in the *old* key. It
+// warns rather than fails because, like rule 5, it's a heuristic (roots
+// only, no quality) that a legitimately chromatic passage could still trip.
 
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseChartBody } from '../js/chart-parser.js';
+import { parseChartBody, findModulations } from '../js/chart-parser.js';
 import { matchSectionHeader } from '../js/chart-constants.js';
 import { NOTES, NOTES_FLAT } from '../js/chord-theory.js';
 import { extractPre } from './lib/chart-file.mjs';
@@ -162,7 +171,85 @@ function validateKey(chart, pre, filePath) {
     }
 }
 
-// ── per-chart validation (rules 1-5) ──
+// ── rule 8 helpers ──
+
+// A section's first line number, used to decide which {modulate: n} marker
+// (if any) was already in effect by the time this section starts — v1
+// markers are typically trailing lines of the *previous* section's block
+// (BILINGUAL-SPEC.md §5.4 places them immediately before the header they
+// apply to), so this compares by absolute file line, not group membership.
+function firstLineOfSection(section) {
+    for (const group of section.groups) {
+        if (group.type === 'v1block') {
+            if (group.lines.length > 0) return group.lines[0].line;
+        } else if (group.type === 'lyric') {
+            if (group.lines.length > 0) return group.lines[0].line;
+        } else if (group.line !== undefined) {
+            return group.line;
+        }
+    }
+    return null;
+}
+
+function chordRootsInSection(section) {
+    const roots = [];
+    for (const group of section.groups) {
+        if (group.type === 'v1block') {
+            for (const line of group.lines) {
+                if (line.kind !== 'chord') continue;
+                for (const t of line.tokens) roots.push({ root: t.root, line: line.line });
+            }
+        } else if (group.type === 'chordline') {
+            for (const t of group.tokens) {
+                if (t.type !== 'chord') continue;
+                const root = t.value.match(/^[A-G](#|b)?/)?.[0];
+                if (root) roots.push({ root, line: group.line });
+            }
+        } else if (group.type === 'lyric') {
+            for (const line of group.lines) {
+                for (const u of line.units) {
+                    if (!u.chord) continue;
+                    const root = u.chord.match(/^[A-G](#|b)?/)?.[0];
+                    if (root) roots.push({ root, line: line.line });
+                }
+            }
+        }
+    }
+    return roots;
+}
+
+function validateModulations(chart, pre, filePath) {
+    const modulations = findModulations(chart);
+    if (modulations.length === 0) return;
+
+    const keyIdx = noteIndex(pre.key);
+    if (keyIdx === -1) return; // rule 5 already reports the unrecognized key name
+
+    for (const section of chart.sections) {
+        const startLine = firstLineOfSection(section);
+        if (startLine === null) continue;
+
+        // The most recent modulation that had already happened by the time
+        // this section starts — sections before any {modulate:} are
+        // unaffected (find() over the reverse gives the nearest one).
+        const active = [...modulations].reverse().find(m => m.line < startLine);
+        if (!active) continue;
+
+        const targetKeyIdx = ((keyIdx + active.semitones) % 12 + 12) % 12;
+        for (const { root, line } of chordRootsInSection(section)) {
+            const rootIdx = noteIndex(root);
+            if (rootIdx === -1) continue;
+            const interval = (rootIdx - targetKeyIdx + 12) % 12;
+            if (!DIATONIC_INTERVALS.has(interval) && !BORROWED_INTERVALS.has(interval)) {
+                const sign = active.semitones >= 0 ? '+' : '';
+                report('WARN', 8, filePath, line,
+                    `chord root "${root}" is neither diatonic to the modulated key (data-key="${pre.key}" ${sign}${active.semitones} semitones) nor a common borrowed chord (bVI/bVII)`);
+            }
+        }
+    }
+}
+
+// ── per-chart validation (rules 1-5, 8) ──
 
 async function validateChartFile(filePath) {
     const content = await readFile(filePath, 'utf8');
@@ -245,6 +332,9 @@ async function validateChartFile(filePath) {
 
     // Rule 5 (warn).
     validateKey(chart, pre, filePath);
+
+    // Rule 8 (warn).
+    validateModulations(chart, pre, filePath);
 }
 
 // ── rule 6 (warn): songs.json <-> charts/ cross-reference ──

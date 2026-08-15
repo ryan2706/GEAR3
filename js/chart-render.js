@@ -10,6 +10,7 @@
 
 import { transposeNote } from './chord-theory.js';
 import { matchSectionHeader } from './chart-constants.js';
+import { findModulations } from './chart-parser.js';
 
 const KEY_DISPLAY = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
@@ -107,6 +108,24 @@ export function transposeChart(chart, semitones = 0) {
         : chart.sections.map(s => transposeV2Section(s, semitones, targetKeyIndex));
 
     return { meta, sections };
+}
+
+// Text form of an (already-transposed) chart's key — "D", or "D → E" if the
+// chart contains a {modulate: n} marker (BILINGUAL-SPEC.md §5.4). Only the
+// first modulation in the chart is shown; n itself is a relative interval
+// so it's read straight off the parsed chart, untouched by whatever
+// semitones transposeChart() above was called with — the arrow's two ends
+// move together under transposition, which is what keeps the interval
+// intact instead of needing separate handling here.
+export function keyDisplay(chart) {
+    if (!chart.meta.key) return chart.meta.key;
+    const modulations = findModulations(chart);
+    if (modulations.length === 0) return chart.meta.key;
+
+    const semitones = modulations[0].semitones;
+    const targetKeyIndex = ((chart.meta.keyIndex + semitones) % 12 + 12) % 12;
+    const secondKey = transposeNote(chart.meta.key, semitones, targetKeyIndex);
+    return `${chart.meta.key} → ${secondKey}`;
 }
 
 // ── v1 render (chart is already transposed — see renderChart below) ──

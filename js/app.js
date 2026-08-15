@@ -1,7 +1,7 @@
 // Main Application Entry Point
 
 import { parseChartBody } from './chart-parser.js';
-import { renderChart, transposeChart } from './chart-render.js';
+import { renderChart, transposeChart, keyDisplay } from './chart-render.js';
 import { matchSectionHeader } from './chart-constants.js';
 
 // Theme Toggle Logic
@@ -504,6 +504,7 @@ function renderSongContent(song) {
     const pinyinMode = showPinyin ? (RUBY_SUPPORTED ? 'ruby' : 'stacked') : 'off';
 
     const chartHtml = renderChart(song.chart, { mode: song.langMode, semitones, pinyin: pinyinMode });
+    const keyText = keyDisplay(transposeChart(song.chart, semitones));
 
     // Key pills — all 12 chromatic keys
     const keyPills = KEY_DISPLAY.map((key, index) => {
@@ -568,7 +569,7 @@ function renderSongContent(song) {
 
         <div class="song-detail-controls">
             <div class="key-selector">
-                <span class="section-header">Key:</span>
+                <span class="section-header">Key: ${keyText}</span>
                 <div class="key-pills">${keyPills}</div>
             </div>${langToggleRow}${pinyinToggleRow}
         </div>
@@ -1116,7 +1117,7 @@ window.generateDoc = async () => {
             children.push(new Paragraph({
                 children: [
                     new TextRun({
-                        text: `${titleText} [${transposedChart.meta.key}]`.toUpperCase(),
+                        text: `${titleText} [${keyDisplay(transposedChart)}]`.toUpperCase(),
                         bold: true,
                         ...DOCX_RUN
                     })

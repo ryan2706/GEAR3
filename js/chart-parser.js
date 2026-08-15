@@ -113,7 +113,7 @@ function parseV1Body(text, meta, startLine = 1) {
 
 // ── v2 ──
 
-const NOTE_LINE = /^\{(note|repeat|goto|segue):\s*(.*)\}$/i;
+const NOTE_LINE = /^\{(note|repeat|goto|segue|modulate):\s*(.*)\}$/i;
 const PINYIN_LINE = /^py:\s*(.*)$/i;
 const LANG_LINE = /^([a-zA-Z]{2,3}(?:-[A-Za-z]+)?):\s*(.*)$/;
 const INLINE_CHORD = /\[([^\]]+)\]/g;
@@ -281,5 +281,36 @@ export function parseChartBody({ text, format, key, langs, primary, startLine = 
     return format === 'bilingual'
         ? parseV2Body(text, meta, startLine)
         : parseV1Body(text, meta, startLine);
+}
+
+// ── modulation markers (BILINGUAL-SPEC.md §5.4) ──
+
+const MODULATE_LINE = /^\{modulate:\s*([+-]?\d+)\}$/i;
+
+// Scans a parsed Chart for {modulate: <semitones>} markers, in file order.
+// v1 has no structured curly-brace parsing (a modulate line there is just
+// an 'other'-kind text line, same as {goto:}/{segue:}/{note:} in v1
+// charts), so this pattern-matches its raw text directly; v2 already
+// produces a { type: 'note', kind: 'modulate' } group via NOTE_LINE, so
+// this reads that structurally instead of re-parsing text. Shared by
+// chart-render.js (key display) and tools/validate-charts.mjs (rule 8) so
+// "does this chart modulate, and by how much" has one answer.
+export function findModulations(chart) {
+    const found = [];
+    for (const section of chart.sections) {
+        for (const group of section.groups) {
+            if (group.type === 'v1block') {
+                for (const line of group.lines) {
+                    if (line.kind === 'chord') continue;
+                    const m = line.text.trim().match(MODULATE_LINE);
+                    if (m) found.push({ semitones: parseInt(m[1], 10), line: line.line });
+                }
+            } else if (group.type === 'note' && group.kind === 'modulate') {
+                found.push({ semitones: parseInt(group.text, 10), line: group.line });
+            }
+        }
+    }
+    found.sort((a, b) => a.line - b.line);
+    return found;
 }
 

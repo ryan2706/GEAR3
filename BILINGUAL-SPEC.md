@@ -162,6 +162,7 @@ language modes.
 {repeat: x2}
 {goto: Chorus}
 {segue: Amazing Grace}
+{modulate: +2}
 ```
 
 Rendered as an italic aside, never transposed, excluded from language filtering. These are
@@ -174,6 +175,18 @@ was never right. `{segue: <title>}` is the same idea pointed at a *different* so
 straight into I Have Decided to Follow Jesus") rather than a section of this one. Neither
 is validated against the section allow-list or any other chart's contents — `<section>` and
 `<title>` are free text, exactly like `{note: ...}`'s.
+
+`{modulate: <semitones>}` documents a genuine key change written into the chart, in place
+(e.g. a final verse repeated a step higher). `<semitones>` is a signed integer — `+2`, `-3`
+— **relative** to whatever key the section it precedes was already going to be in. Because
+it's a relative offset rather than an absolute key name, transposing the whole chart with
+the key selector doesn't touch it: every chord shifts by the same amount, so the interval
+the marker describes is preserved automatically. Like `{note: ...}`, it's rendered as an
+aside, never transposed itself, and excluded from language filtering — it's metadata about
+the chart's structure, not a chord or a lyric. Unlike the others, it's not purely
+decorative: `tools/validate-charts.mjs` reads it (rule 8, §8) to check that whatever follows
+it actually *is* in the resulting key, and the renderer reads it to show the chart's key as
+e.g. `D → E` instead of just `D`.
 
 ### 5.5 Comments
 
@@ -322,8 +335,11 @@ Mandarin-only songs use `title` for the Chinese name and set `langs: ["zh-Hans"]
 6. Every `songs.json` `url` resolves to a file on disk, and every chart file appears in
    `songs.json`. (Worth running against your current 308 too — orphans accumulate.)
 7. No non-ASCII bytes in any path under `charts/`.
+8. Every chord in a section following a `{modulate: n}` marker (§5.4) is diatonic to
+   `data-key` transposed by `n`, or a common borrowed chord (bVI, bVII) — same diatonic
+   check as rule 5, just against the modulated key instead of the written one.
 
-Fail the build on 1–4 and 7; warn on 5–6.
+Fail the build on 1–4 and 7; warn on 5–6 and 8.
 
 ---
 

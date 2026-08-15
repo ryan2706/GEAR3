@@ -22,7 +22,8 @@
 //   2. Every inline [chord] token matches the chord grammar.
 //   3. Every bare-bracket line is a recognized section name.
 //   4. Within a line group, every language line has the same chord sequence.
-//   5. (warn) data-key is a real key and matches the chart's first chord.
+//   5. (warn) data-key is a real key, and the chart's first chord is diatonic
+//      to it or a common borrowed chord (bVI, bVII).
 //   6. (warn) songs.json <-> charts/ are mutually consistent.
 //   7. No non-ASCII bytes in any path under charts/.
 //
@@ -34,9 +35,18 @@
 // body is empty, or parsing produced no content at all.
 // Rule 5: BILINGUAL-SPEC.md's "or is reachable from it" is genuinely
 // underspecified — read literally ("some transposition connects any two
-// notes"), it's vacuously true of every chart and not a check at all. This
-// implements the more useful reading: the declared key's pitch class
-// should match the chart's first chord's pitch class.
+// notes"), it's vacuously true of every chart and not a check at all.
+// Requiring an exact match against the *first* chord was tried and
+// rejected: worship charts routinely open on an intro/pickup chord built on
+// IV, V, or vi rather than the tonic, so that reading produced a warning on
+// ~23% of the corpus — noise, not signal. This implements the more useful
+// reading instead: the first chord's root must be diatonic to the declared
+// key, or one of the two borrowed chords (bVI, bVII) that show up
+// constantly in this genre. Secondary dominants (V/ii, V/iii, V/IV, V/V,
+// V/vi) don't need their own case — a dominant's root sits a fifth above
+// its target, and a fifth above any diatonic scale degree lands back on a
+// diatonic degree for every target except vii° (V/vii, the tritone degree,
+// stays flagged — rare enough in practice that it's still worth a look).
 
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -91,6 +101,14 @@ const SECTION_HEADER_LINE = new RegExp(`^\\[((?:${SECTION_HEADERS.join('|')}).*?
 
 // ── rule 5 helpers ──
 
+// Semitone offsets from the tonic: the seven diatonic major-scale degrees
+// (I ii iii IV V vi vii°) plus the two chords worship charts routinely
+// borrow from the parallel minor (bVI, bVII — think "Oceans"-style
+// bVII-IV-I turnarounds). See the interpretation note above for why
+// secondary dominants don't need their own entries here.
+const DIATONIC_INTERVALS = new Set([0, 2, 4, 5, 7, 9, 11]);
+const BORROWED_INTERVALS = new Set([8, 10]);
+
 function noteIndex(name) {
     if (!name) return -1;
     let i = NOTES.indexOf(name);
@@ -137,9 +155,11 @@ function validateKey(chart, pre, filePath) {
     const first = firstChordInChart(chart);
     if (!first) return; // no chords anywhere in the chart — nothing to compare
     const firstIdx = noteIndex(first.root);
-    if (firstIdx !== -1 && firstIdx !== keyIdx) {
+    if (firstIdx === -1) return;
+    const interval = (firstIdx - keyIdx + 12) % 12;
+    if (!DIATONIC_INTERVALS.has(interval) && !BORROWED_INTERVALS.has(interval)) {
         report('WARN', 5, filePath, first.line,
-            `data-key="${pre.key}" doesn't match this chart's first chord root "${first.root}"`);
+            `data-key="${pre.key}" — first chord root "${first.root}" is neither diatonic to this key nor a common borrowed chord (bVI/bVII)`);
     }
 }
 

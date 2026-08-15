@@ -105,7 +105,7 @@ A line whose entire trimmed content is a bracketed section name:
 ```
 [Intro]  [Verse]  [Verse 1]  [Pre-Chorus]  [Chorus 1]  [Bridge]
 [Interlude]  [Tag]  [Instrumental]  [Ending]  [Coda]  [Outro]
-[Turnaround]  [End]  [Final Chorus]  [Echo]  [High Praise]
+[Turnaround]  [End]  [Final Chorus]  [Echo]  [High Praise]  [Build-up]
 ```
 
 Same allow-list your v1 renderer already uses. Anything else in brackets on its own line

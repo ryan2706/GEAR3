@@ -18,7 +18,8 @@ export const SECTION_HEADERS = [
     'End',
     'Final Chorus',
     'Echo',
-    'High Praise'
+    'High Praise',
+    'Build-up'
 ];
 
 function escapeRegExp(str) {

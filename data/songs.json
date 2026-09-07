@@ -663,6 +663,8 @@
   {
     "title": "Good Grace",
     "url": "charts/G/good-grace.html",
+    "format": "bilingual",
+    "langs": ["en"],
     "ccli": "7122177",
     "bpm": "71",
     "timeSignature": "4/4 time"
@@ -1274,6 +1276,8 @@
   {
     "title": "Offering (The Sun Cannot Compare)",
     "url": "charts/O/offering-the-sun-cannot-compare.html",
+    "format": "bilingual",
+    "langs": ["en"],
     "ccli": "3956562",
     "bpm": "66",
     "timeSignature": "4/4 time"
@@ -1420,7 +1424,9 @@
   },
   {
     "title": "Reward",
-    "url": "charts/R/reward.html"
+    "url": "charts/R/reward.html",
+    "format": "bilingual",
+    "langs": ["en"]
   },
   {
     "title": "Sanctuary (City Harvest)",
@@ -1569,6 +1575,8 @@
   {
     "title": "There is None Like You",
     "url": "charts/T/there-is-none-like-you.html",
+    "format": "bilingual",
+    "langs": ["en"],
     "ccli": "674545",
     "bpm": "69",
     "timeSignature": "4/4 time"
@@ -1852,6 +1860,8 @@
   {
     "title": "You Are Here (in our midst)",
     "url": "charts/Y/you-are-here-in-our-midst.html",
+    "format": "bilingual",
+    "langs": ["en"],
     "ccli": "1896332"
   },
   {

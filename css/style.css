@@ -85,6 +85,13 @@
     --spacing-lg:   2.5rem;   /* stack-lg  40px */
     --spacing-xl:   5rem;     /* section-gap 80px */
     --gutter:       2rem;     /* 32px */
+    /* 2× spacing-md — the gap between one chart section and the next (v2
+       charts only). DESIGN.md's own section-gap (--spacing-xl, 80px) is
+       sized for page-level layout between whole screens, not for an inline
+       chart's own internal rhythm — reusing it here would dwarf a chord
+       chart's other spacing rather than just being the largest of its three
+       tiers, so this is its own smaller, chart-scoped token instead. */
+    --chart-section-gap: 2rem; /* 32px */
     --margin-page:  4rem;     /* 64px */
     --container-max: 1120px;
 
@@ -734,19 +741,38 @@ pre {
 
 /* ── Bilingual Chart (v2) ──
    Unlike v1's <pre>, chord/lyric alignment here doesn't depend on monospace
-   character columns — each .unit stacks its own .chord above its .syl. */
+   character columns — each .unit stacks its own .chord above its .syl.
+
+   Three deliberately distinct vertical rhythms, tightest to loosest, so a
+   section boundary reads as clearly as the blank line v1 gets for free from
+   its source text — before this, a section-to-section gap and an
+   ordinary between-line-group gap both collapsed to the same 16px, so nothing
+   on screen told the two apart:
+     1. .lyric-line + .lyric-line   (--spacing-sm,          8px) — an en/zh
+        pair inside one line group, close enough to read as one line.
+     2. .line-group                 (--spacing-md,         16px) — between
+        line groups within a section.
+     3. .chart-section .section-header (--chart-section-gap, 32px) — between
+        sections; exactly 2× tier 2, the "roughly double" v1's blank line
+        achieves.
+   The gap lives entirely on the *next* section's header (margin-top), not
+   split across the previous .chart-section's margin-bottom and the header's
+   own margin — one source of truth instead of two values that have to be
+   read together to know the resulting gap. */
 .chart-v2 {
     font-family: var(--font-sans);
     font-size: 0.9375rem;
-}
-
-.chart-section {
     margin-bottom: var(--spacing-md);
 }
 
+/* A header attaches to the section *below* it (more space above than
+   below) — that asymmetry, not extra font weight, is what makes it read as
+   a divider rather than another line of text; BILINGUAL-SPEC.md's Section
+   Headers style (Manrope 12px/700/uppercase) already matches v1's
+   [VERSE 1] exactly, so the gap was the only thing not pulling its weight. */
 .chart-section .section-header {
     display: block;
-    margin: var(--spacing-md) 0 var(--spacing-sm);
+    margin: var(--chart-section-gap) 0 var(--spacing-sm);
 }
 
 .chart-section:first-child .section-header {
@@ -787,6 +813,17 @@ pre {
     vertical-align: bottom;
 }
 
+/* A melisma (BILINGUAL-SPEC.md §5.2's [F][Gm][F]Glo) is a .chord-cluster of
+   more than one .chord child, laid out horizontally via flex; a lone chord
+   is just a one-item cluster, so this is the only shape .unit ever needs —
+   no separate single-chord case. flex governs the *children's* layout
+   regardless of .chord's own `display` below, so that rule doesn't need to
+   change for clustering to work. */
+.chord-cluster {
+    display: flex;
+    gap: 0.15em;
+}
+
 .unit .chord {
     display: block;
     font-weight: 600;
@@ -794,6 +831,21 @@ pre {
     color: var(--color-secondary);
     border-bottom: none;
     min-height: 1.2em;
+}
+
+/* renderChordCluster()'s empty-cluster placeholder (a unit with no chord at
+   all — every unit in a {chords: <section>}-reused verse, BILINGUAL-SPEC.md
+   §5.4, or an unchorded word within an otherwise-chorded line) — collapsed
+   out of layout entirely rather than just zeroing min-height, so it reserves
+   no chord-row space above its syllable. .unit's own vertical-align:bottom
+   keeps every syllable on one baseline regardless of which neighboring units
+   still have a real chord row above them, so this doesn't jag a mixed line —
+   see js/chart-render.js's renderChordCluster(). A whole line group with no
+   chords anywhere (v1's equivalent: no chord row typed at all) ends up exactly
+   as tight as v1's chordless verses, instead of reserving a chord row nothing
+   ever fills. */
+.unit .chord[aria-hidden="true"] {
+    display: none;
 }
 
 .unit .syl {

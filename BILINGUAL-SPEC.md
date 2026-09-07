@@ -141,6 +141,21 @@ Chords are repeated on each language line **on purpose**: Chinese syllable count
 from English, so chord positions genuinely differ. The validator (§8) enforces that the
 chord *sequence* matches across a group, which is what stops the two from drifting.
 
+Column binding differs by script. On an `en:` (or any Latin-script) line, a chord binds
+to the character at its literal string column. On a `zh:` (or other CJK) line, it binds
+by **display width** instead: Han characters and full-width punctuation count as 2
+columns, everything else counts as 1. This is what keeps a chord's rendered position
+lined up with the syllable it's sung on even though a CJK character renders about twice
+as wide as a Latin one.
+
+Adjacent chord clusters with no lyric between them — `[F][Gm][F]Glo` — bind all of those
+chords to the single syllable that follows, not to three separate syllables. This is a
+**melisma**: one syllable stretched across a chord change (or several) before the lyric
+moves on, common in refrains like "Glo-o-o-ria." The grammar doesn't need a special case
+for it — `[F][Gm][F]` is just three ordinary chord tokens in a row with no text between
+their brackets — but it's worth calling out explicitly, since reading it as three
+one-character syllables would be wrong. See §6.1 for how a cluster renders.
+
 ### 5.3 Chord-only lines
 
 No prefix. Used for intros, turnarounds, instrumentals. Rendered once, shared by all
@@ -224,17 +239,37 @@ counting, reflows on narrow screens:
 
 ```html
 <span class="unit">
-  <span class="chord" data-chord="A">A</span>
+  <span class="chord">
+    <span class="chord-name" data-chord="A">A</span>
+  </span>
   <span class="syl">You are the </span>
 </span>
 ```
 
+A melisma (§5.2's `[F][Gm][F]Glo`) is the same shape with more than one `.chord-name` —
+laid out horizontally inside the same chord slot, not stacked:
+
+```html
+<span class="unit">
+  <span class="chord">
+    <span class="chord-name" data-chord="F">F</span>
+    <span class="chord-name" data-chord="Gm">Gm</span>
+    <span class="chord-name" data-chord="F">F</span>
+  </span>
+  <span class="syl">Glo</span>
+</span>
+```
+
 ```css
-.unit  { display: inline-block; vertical-align: bottom; }
-.chord { display: block; font-weight: 600; font-size: 0.8125em;
-         color: var(--color-secondary); }
+.unit       { display: inline-block; vertical-align: bottom; }
+.chord      { display: flex; gap: 0.2em; }
+.chord-name { font-weight: 600; font-size: 0.8125em; color: var(--color-secondary); }
 .lyric-line[lang^="zh"] { font-family: var(--font-mono-cjk); }
 ```
+
+`.chord` is always a flex container of one or more `.chord-name` children — a single
+chord is just a one-item cluster, which is why `data-chord` lives on `.chord-name` now
+rather than on `.chord` itself.
 
 Add to your token set in `style.css`:
 
@@ -275,7 +310,7 @@ your `YOU ARE HOLY` page already demonstrates.
 
 ### 6.4 Transposition
 
-Operate on parsed `unit.chord` tokens. Delete the "is every token on this line a chord?"
+Operate on parsed `unit.chords` tokens. Delete the "is every token on this line a chord?"
 heuristic — it's no longer needed and it was the fragile part.
 
 While rewriting, fix the enharmonic spelling. `transposeNote()` currently always returns

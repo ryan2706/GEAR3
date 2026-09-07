@@ -74,7 +74,7 @@ function transposeV2Section(section, semitones, targetKeyIndex) {
                         lang: line.lang,
                         pinyin: line.pinyin, // never transposed — chords, not readings
                         units: line.units.map(u => ({
-                            chord: u.chord ? transposeChordString(u.chord, semitones, targetKeyIndex) : null,
+                            chords: u.chords.map(c => transposeChordString(c, semitones, targetKeyIndex)),
                             text: u.text
                         }))
                     }))
@@ -206,21 +206,31 @@ function buildRubyReadings(text, pinyinStr) {
     return chars.map((ch, i) => ({ ch, reading: tokens[i], isHan: HAN_RE.test(ch) }));
 }
 
-// The .chord/data-chord convention matches v1 exactly, so the existing
-// chord-hover tooltip subsystem in app.js works on v2 charts unmodified.
-function renderChordSpan(chord) {
-    return chord
-        ? `<span class="chord" data-chord="${escapeHtml(chord)}">${escapeHtml(chord)}</span>`
-        : `<span class="chord" aria-hidden="true"></span>`;
+// Each chord keeps its own .chord/data-chord element — that convention
+// matches v1 exactly, so the existing chord-hover tooltip subsystem in
+// app.js (keyed on .chord + data-chord) works on every individual chord in
+// a cluster unmodified, with no separate class or JS path needed for the
+// melisma case. .chord-cluster is only the layout wrapper: a lone chord is
+// a one-item cluster (BILINGUAL-SPEC.md §5.2/§6.1), and multiple adjacent
+// .chord children lay out horizontally inside it via CSS flex — see
+// .chord-cluster in style.css — rather than each becoming its own .unit.
+function renderChordCluster(chords) {
+    if (chords.length === 0) {
+        return `<span class="chord-cluster"><span class="chord" aria-hidden="true"></span></span>`;
+    }
+    const spans = chords
+        .map(c => `<span class="chord" data-chord="${escapeHtml(c)}">${escapeHtml(c)}</span>`)
+        .join('');
+    return `<span class="chord-cluster">${spans}</span>`;
 }
 
 function renderUnitPlain(unit) {
-    return `<span class="unit">${renderChordSpan(unit.chord)}<span class="syl">${escapeHtml(unit.text)}</span></span>`;
+    return `<span class="unit">${renderChordCluster(unit.chords)}<span class="syl">${escapeHtml(unit.text)}</span></span>`;
 }
 
-// Same .unit/.chord shell as renderUnitPlain, but .syl becomes a run of
-// <ruby> elements — one per Han character `readings` covers. `cursor` is a
-// shared { i } across a whole lyric line's units (not reset per unit),
+// Same .unit/.chord-cluster shell as renderUnitPlain, but .syl becomes a run
+// of <ruby> elements — one per Han character `readings` covers. `cursor` is
+// a shared { i } across a whole lyric line's units (not reset per unit),
 // since characters flow continuously across unit/chord boundaries.
 function renderUnitRuby(unit, readings, cursor) {
     const chars = [...unit.text];
@@ -231,7 +241,7 @@ function renderUnitRuby(unit, readings, cursor) {
             : escapeHtml(ch);
     }).join('');
     cursor.i += chars.length;
-    return `<span class="unit">${renderChordSpan(unit.chord)}<span class="syl">${html}</span></span>`;
+    return `<span class="unit">${renderChordCluster(unit.chords)}<span class="syl">${html}</span></span>`;
 }
 
 // A rendered .lyric-line carries the chart's full BCP47 tag (e.g. "zh-Hans"),

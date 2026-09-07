@@ -113,26 +113,45 @@ function parseV1Body(text, meta, startLine = 1) {
 
 // ── v2 ──
 
-const NOTE_LINE = /^\{(note|repeat|goto|segue|modulate):\s*(.*)\}$/i;
+// Exported so tools/validate-charts.mjs can check for this syntax
+// appearing in a v1 chart (where it's never recognized — v1 has no
+// structured curly-brace parsing at all) without maintaining a second,
+// driftable copy of the keyword list.
+export const NOTE_LINE = /^\{(note|repeat|goto|segue|modulate|chords):\s*(.*)\}$/i;
 const PINYIN_LINE = /^py:\s*(.*)$/i;
 const LANG_LINE = /^([a-zA-Z]{2,3}(?:-[A-Za-z]+)?):\s*(.*)$/;
 const INLINE_CHORD = /\[([^\]]+)\]/g;
 
+// A unit's `chords` is an array (possibly empty), not a single nullable
+// chord — BILINGUAL-SPEC.md §5.2's "adjacent chord clusters" ([F][Gm][F]Glo)
+// are a melisma: several chords bound to one syllable, not several
+// syllable-less units in a row. Two or more bracket matches with nothing
+// between them (no text separating them) accumulate into one unit instead
+// of each becoming its own empty-text unit; the cluster attaches to
+// whatever text follows the last bracket in the run. A lone bracket is just
+// a one-item cluster, so callers don't need a separate single-chord case.
 function tokenizeInlineChordUnits(text) {
     const matches = [...text.matchAll(INLINE_CHORD)];
     if (matches.length === 0) {
-        return text === '' ? [] : [{ chord: null, text }];
+        return text === '' ? [] : [{ chords: [], text }];
     }
 
     const units = [];
     if (matches[0].index > 0) {
-        units.push({ chord: null, text: text.slice(0, matches[0].index) });
+        units.push({ chords: [], text: text.slice(0, matches[0].index) });
     }
+
+    let pendingChords = [];
     for (let i = 0; i < matches.length; i++) {
-        const chord = matches[i][1];
+        pendingChords.push(matches[i][1]);
         const start = matches[i].index + matches[i][0].length;
         const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
-        units.push({ chord, text: text.slice(start, end) });
+        const segment = text.slice(start, end);
+        // Nothing between this bracket and the next one — keep accumulating
+        // into the same cluster rather than flushing an empty-text unit.
+        if (segment === '' && i + 1 < matches.length) continue;
+        units.push({ chords: pendingChords, text: segment });
+        pendingChords = [];
     }
     return units;
 }

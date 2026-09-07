@@ -97,15 +97,6 @@
         font-size: 0.8125rem;
     }
 
-    .transposition-controls {
-        flex-wrap: wrap;
-        width: 100%;
-    }
-
-    .verse-card blockquote {
-        font-size: 1.125rem;
-    }
-
     .feature-card {
         padding: 1.75rem 1.5rem;
     }

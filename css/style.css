@@ -692,18 +692,6 @@ pre {
 }
 
 /* ── Transposition Controls ── */
-.transposition-controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: var(--spacing-md);
-    background-color: var(--color-surface-container-low);
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
-    width: fit-content;
-}
-
 .key-select {
     background-color: var(--surface-color);
     color: var(--text-color);
@@ -719,16 +707,6 @@ pre {
 .key-select:focus {
     outline: none;
     border-color: var(--primary-color);
-}
-
-.key-display {
-    font-family: var(--font-heading);
-    font-weight: 700;
-    font-size: 1.375rem;
-    min-width: 2rem;
-    text-align: center;
-    color: var(--primary-color);
-    letter-spacing: -0.01em;
 }
 
 /* ── Chord Annotations ── */
@@ -1178,70 +1156,6 @@ pre {
     flex-grow: 1;
     font-size: 0.9375rem;
     line-height: 1.65;
-}
-
-/* ── Verse Cards ── */
-.verses-section {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.verses-container {
-    display: grid;
-    gap: var(--spacing-sm);
-}
-
-.verse-card {
-    background-color: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-left: 2px solid var(--primary-color);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
-    padding: var(--spacing-md) 1.75rem;
-    box-shadow: var(--shadow-sm);
-}
-
-[data-theme="dark"] .verse-card {
-    background-color: var(--color-surface-container);
-}
-
-.verse-card blockquote {
-    font-family: var(--font-heading);
-    font-style: italic;
-    font-size: 1.25rem;
-    font-weight: 400;
-    line-height: 1.55;
-    margin-bottom: 0.625rem;
-    color: var(--text-color);
-}
-
-.verse-card blockquote::before {
-    content: '\201C';
-    font-size: 2rem;
-    line-height: 0;
-    vertical-align: -0.35em;
-    color: var(--color-outline);
-    margin-right: 0.1em;
-}
-
-.verse-card blockquote::after {
-    content: '\201D';
-    font-size: 2rem;
-    line-height: 0;
-    vertical-align: -0.35em;
-    color: var(--color-outline);
-    margin-left: 0.1em;
-}
-
-.verse-card cite {
-    display: block;
-    font-family: var(--font-label);
-    font-weight: 700;
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    font-style: normal;
-    text-align: right;
 }
 
 /* ── Carousel ── */

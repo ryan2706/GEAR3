@@ -16,19 +16,18 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 20
+          cache: npm
 
-      # tools/validate-charts.mjs imports only Node's standard library and
-      # the site's own js/ modules (chart-parser.js, chart-constants.js,
-      # chord-theory.js) — no npm package is involved, so there is nothing
-      # to install before running it.
-      - name: Validate chord charts (BILINGUAL-SPEC.md §8)
-        run: node tools/validate-charts.mjs
-
-      # Unlike validate-charts.mjs, the test suite spawns
-      # tools/docx-to-chart.mjs (tests/docx-to-chart.test.mjs), which does
-      # import npm packages (@xmldom/xmldom, jszip) — install first.
+      # tools/validate-charts.mjs imports js/chart-parser.js etc. directly,
+      # but rule 12 (BILINGUAL-SPEC.md §8) also pulls in tools/lib/pinyin.mjs,
+      # which imports pinyin-pro — an npm package. The test suite spawns
+      # tools/docx-to-chart.mjs too, which needs @xmldom/xmldom and jszip.
+      # Install has to run before either step that needs these.
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate chord charts (BILINGUAL-SPEC.md §8)
+        run: node tools/validate-charts.mjs
 
       - name: Run tests
         run: npm test

@@ -88,7 +88,7 @@ that references them. Optional, but it removes a whole class of URL-encoding bug
 | `data-format` | yes | Always `bilingual` for v2. |
 | `data-key` | yes | Written key of the chords in the file. |
 | `data-langs` | yes | Comma-separated, in authoring order. `en,zh-Hant`, `en,zh-Hans`, or `zh-Hans` alone. |
-| `data-primary` | no | Default top layer when mode is "both". Defaults to first of `data-langs`. |
+| `data-primary` | no | Authoring metadata only — recorded but not read by the renderer. The site's default language mode is fixed to English-first (§6.2), regardless of this attribute. |
 
 Use `zh-Hant` / `zh-Hans` precisely, not bare `zh` — it drives the `lang` attribute on
 rendered lines, which is what makes browsers pick the right regional glyph variants. Your
@@ -177,6 +177,7 @@ language modes.
 {repeat: x2}
 {goto: Chorus}
 {segue: Amazing Grace}
+{chords: Verse 1}
 {modulate: +2}
 ```
 
@@ -190,6 +191,29 @@ was never right. `{segue: <title>}` is the same idea pointed at a *different* so
 straight into I Have Decided to Follow Jesus") rather than a section of this one. Neither
 is validated against the section allow-list or any other chart's contents — `<section>` and
 `<title>` are free text, exactly like `{note: ...}`'s.
+
+`{chords: <section>}` declares that this section reuses another section's chord
+progression rather than writing it out again — the common case being a later verse that
+repeats verse 1's changes under new lyrics, with no chord line of its own. Unlike
+`{goto: ...}`/`{segue: ...}`, `<section>` here is **not** free text: it must resolve to a
+section name that actually exists in the same chart, matched the same case-/
+separator-insensitive way as §5.1 header matching (§8, rule 9 — fails the build
+otherwise). The section's own lyric lines still carry no inline `[chord]` tokens.
+
+**This marker is data-only — it's never rendered as its own line, in either the on-screen
+chart or the docx chart body.** Its one surfaced form is the `*<section>` suffix
+`buildSongOrderTable()` adds to this section's row in the docx's Song Order table —
+`Verse 2 *Verse 1` — which already states the reuse in context, right next to the section it
+applies to. Printing it a second time, as its own bare `Verse 1` line at the top of the
+chordless verse's lyrics, read as a stray or duplicated line, not a note — the Song Order
+table said it more clearly already. The on-screen chart page renders nothing for it either:
+a chordless verse repeating the previous section's progression is the same convention v1
+charts always used with no on-screen note at all, and it isn't ambiguous in that context —
+the previous section's chords are right there on the same screen. Don't add a "chords as
+`<section>`" note (or the bare `<section>` line the docx body used to print) back into
+`js/chart-render.js` or `js/app.js`'s `buildSectionParagraphs()` thinking either absence is
+an oversight; neither is. `tools/docx-to-chart.mjs` still writes the marker into new
+conversions, and rule 9 (§8) still validates it — only what gets *printed* from it changed.
 
 `{modulate: <semitones>}` documents a genuine key change written into the chart, in place
 (e.g. a final verse repeated a step higher). `<semitones>` is a signed integer — `+2`, `-3`
@@ -302,18 +326,40 @@ Persist the choice in `localStorage` under `chartLang`, same pattern as your exi
 
 Modes unavailable for a given chart (`en` on a Mandarin-only song) are disabled, not hidden.
 
-### 6.3 Per-section override
+**Default:** English-first (`en-zh`) site-wide, for every bilingual chart, regardless of
+`data-primary` — one saved `localStorage` choice carries across songs, same as before; this
+only governs what a chart shows the very first time, before any choice has been saved.
 
-Each section header gets a small language chip. Overriding it sets that section's mode
-independently. The resulting map is the song's **language plan**:
+**Fallback:** in a single-language mode (`en` or `zh`), a section with no line in that
+language renders its available language rather than rendering empty. A bilingual song can
+have an English-only bridge or a Mandarin-only outro (§5.2's per-section mixed-language
+case); switching to `zh` mode shouldn't blank those sections out just because they don't
+have a `zh:` line. This fallback doesn't apply to the two-language modes (`en-zh`/`zh-en`),
+which already show whichever language(s) a section actually has.
+
+### 6.3 Per-section override (setlist builder only — not on the song page)
+
+The song page has no per-section language control and no plan picker: every section of
+every chart renders exactly once, in the one global mode (§6.2), in its natural document
+position. A section is never shown twice. This was tried (a `sectionOverrides` map plus an
+additive `repeats` list, loaded from a per-song sidecar at `data/setlists/<slug>.json`,
+picked from on the song page) and deliberately walked back — showing a whole section once
+in one language and then again in the other was harder to follow than this format's
+ordinary line-by-line pairing (§6.2's `en-zh`/`zh-en` modes), which already interleaves both
+languages line by line within a section.
+
+`sectionOverrides` survives only as a **setlist-entry** field, set by hand in the setlist
+builder (never inferred, never loaded from a sidecar) for the Word doc export:
 
 ```json
-{ "Verse": "zh", "Chorus": "en", "Bridge": "zh-en" }
+{ "planLabel": "Main", "sectionOverrides": { "Verse": "zh", "Chorus": "en" } }
 ```
 
-This is your Word doc's Song Order table as data. It belongs to the **setlist entry**, not
-the chart file — the same song gets a different plan for a Main vs Recessional slot, which
-your `YOU ARE HOLY` page already demonstrates.
+This is the builder's own per-song-in-this-setlist override — it belongs to the entry, not
+the chart file, exists only in memory for the life of the setlist, and only ever affects the
+generated Word document, never the live chart page. `data/setlists/<slug>.json` sidecar
+files may still exist in the repo as a historical record of past services' plans; nothing at
+runtime reads them.
 
 ### 6.4 Transposition
 
@@ -403,8 +449,29 @@ Mandarin-only songs use `title` for the Chinese name and set `langs: ["zh-Hans"]
 8. Every chord in a section following a `{modulate: n}` marker (§5.4) is diatonic to
    `data-key` transposed by `n`, or a common borrowed chord (bVI, bVII) — same diatonic
    check as rule 5, just against the modulated key instead of the written one.
+9. Every `{chords: <section>}` reference (§5.4) resolves to a section that actually
+   exists in the same chart, matched the same case-/separator-insensitive way as §5.1
+   header matching.
+10. No v2 marker syntax (`{note:}`, `{repeat:}`, `{goto:}`, `{segue:}`, `{modulate:}`,
+    `{chords:}` — §5.4) inside a v1-format chart. v1 has no curly-brace parsing at all,
+    so the marker doesn't fail to parse — it silently renders as literal text. A v1
+    chart needing this syntax should migrate to v2 (§3/§4), not grow markers v1 can't
+    display.
+11. (warn) Every `data/setlists/<slug>.json` sidecar's `sectionOverrides` key, and every
+    `repeats[].section`, matches a real section in the chart it's for — the chart found by
+    `slugify(title)` on whichever `songs.json` entry's title slugifies to that same
+    `<slug>`. Nothing at runtime loads these sidecars any more (§6.3) — they're validated
+    purely as an archival record, so a mismatch here means "this old record no longer
+    matches the chart," not "something will render wrong." A `repeats[]` entry's `after` is
+    exempt — a missing or unmatched `after` was always intentional (render at the end), not
+    a mismatch.
+12. (warn) Every `zh-*` line's `py:` line matches what `tools/build-index.mjs` (via
+    `tools/lib/pinyin.mjs`, shared with the generator so the two can't drift apart) would
+    currently generate for it — including a `zh-*` line with no `py:` line at all. Warn, not
+    fail: a missing or stale `py:` line degrades the pinyin toggle (§6.5) to an outdated or
+    absent reading, it never breaks parsing or anything else on the page.
 
-Fail the build on 1–4 and 7; warn on 5–6 and 8.
+Fail the build on 1–4, 7, 9, and 10; warn on 5–6, 8, 11, and 12.
 
 ---
 

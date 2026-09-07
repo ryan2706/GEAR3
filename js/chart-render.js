@@ -279,6 +279,19 @@ function renderLyricLine(line, chart, pinyinMode) {
 
 function renderLineGroup(group, chart, mode, pinyinMode) {
     if (group.type === 'note') {
+        // {chords: <section>} (BILINGUAL-SPEC.md §5.4) is data-only — the
+        // marker still parses (rule 9 still validates it) but it prints
+        // nowhere, in either the on-screen chart or the docx chart body
+        // (app.js's buildSectionParagraphs() explicitly skips this kind too).
+        // Its one surfaced form is the "*<section>" suffix buildSongOrderTable()
+        // adds to this section's Song Order row, right next to the section it
+        // applies to — printing it again as its own bare line here would just
+        // read as a stray duplicate. A chordless verse repeating the previous
+        // section's progression is the same convention v1 charts always used
+        // with no on-screen note at all, and this team was never confused by
+        // it there. Every other kind (note/repeat/goto/segue/modulate) still
+        // shows group.text as-is.
+        if (group.kind === 'chords') return '';
         return `<p class="chart-note">${escapeHtml(group.text)}</p>`;
     }
 
@@ -302,32 +315,34 @@ function renderLineGroup(group, chart, mode, pinyinMode) {
     return `<div class="line-group">${rendered}</div>`;
 }
 
-// A section's language mode falls back to the global `mode` unless
-// sectionOverrides names that section (BILINGUAL-SPEC.md §6.3).
-function renderSection(section, chart, mode, sectionOverrides, pinyinMode) {
-    const effectiveMode = (section.name && sectionOverrides[section.name]) || mode;
-    const header = section.name
-        ? `<div class="section-header">[${escapeHtml(section.name)}]</div>`
-        : '';
-    const body = section.groups
-        .map(group => renderLineGroup(group, chart, effectiveMode, pinyinMode))
-        .join('');
-    return `<div class="chart-section">${header}${body}</div>`;
+function renderSectionHeader(section) {
+    return section.name ? `<div class="section-header">[${escapeHtml(section.name)}]</div>` : '';
 }
 
-function renderV2(chart, mode, sectionOverrides, pinyinMode) {
-    const body = chart.sections
-        .map(s => renderSection(s, chart, mode, sectionOverrides, pinyinMode))
-        .join('');
+function renderSectionBody(section, chart, mode, pinyinMode) {
+    return section.groups.map(group => renderLineGroup(group, chart, mode, pinyinMode)).join('');
+}
+
+// Every section renders exactly once, in the chart's own document order, in
+// the one global `mode` — no per-section override, no repeated showing.
+// Within a line group, `mode` itself is what produces line-by-line pairing
+// ('en-zh'/'zh-en' render both languages, one line immediately after the
+// other; 'en'/'zh' render one) — see renderLineGroup/MODE_LANGS above.
+function renderSection(section, chart, mode, pinyinMode) {
+    return `<div class="chart-section">${renderSectionHeader(section)}${renderSectionBody(section, chart, mode, pinyinMode)}</div>`;
+}
+
+function renderV2(chart, mode, pinyinMode) {
+    const body = chart.sections.map(section => renderSection(section, chart, mode, pinyinMode)).join('');
     return `<div class="chart-v2">${body}</div>`;
 }
 
 // ── entry point ──
 
-export function renderChart(chart, { mode = 'en-zh', semitones = 0, sectionOverrides = {}, pinyin = 'off' } = {}) {
+export function renderChart(chart, { mode = 'en-zh', semitones = 0, pinyin = 'off' } = {}) {
     const transposed = transposeChart(chart, semitones);
 
     return transposed.meta.format === 'v1'
         ? renderV1(transposed)
-        : renderV2(transposed, mode, sectionOverrides, pinyin);
+        : renderV2(transposed, mode, pinyin);
 }

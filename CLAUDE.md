@@ -128,3 +128,9 @@ naming (ASCII-only paths — Han characters in filenames break across macOS/Linu
 git), the `data-langs`/`data-primary` attributes, line-group chord-sequence
 validation, and the migration order. Read it in full before starting bilingual
 work; don't partially implement v2 without it.
+
+Setlist sidecars record what a specific team performed at a specific service.
+Never infer a language plan, planLabel, or section order from chart content or
+from another service's plan. If the source document doesn't state it, leave it
+out — a missing entry falls back to the default, a fabricated one is silently
+wrong. The same song legitimately has different plans under different leaders.

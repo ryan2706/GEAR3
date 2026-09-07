@@ -56,11 +56,16 @@ let songsData = [];
 // selectedSongs is an Array of setlist entries:
 //   { entryId, title, keyIndex, langMode, sectionOverrides, planLabel }
 // entryId (not title) is the entry's identity — the same song can appear
-// more than once under different planLabels (BILINGUAL-SPEC.md §6.3: the
-// language plan belongs to the setlist entry, since the same song gets a
-// different plan in different service slots), so title alone can no longer
-// be trusted to find "the" entry the way it used to.
+// more than once under different planLabels (the setlist builder's
+// Duplicate button), so title alone can no longer be trusted to find "the"
+// entry the way it used to.
 let selectedSongs = [];
+
+// Document-level docx export option, not per-song — lives alongside
+// selectedSongs the same way (in-memory, survives renderGenerate()'s
+// re-renders, reset on page reload) rather than in localStorage, matching
+// how the rest of the setlist's own state already persists.
+let includePinyin = false;
 
 function newSetlistEntry(title, keyIndex, song) {
     const entry = {
@@ -440,14 +445,14 @@ async function fetchSongContent(song) {
         }
 
         // Seed the language-mode toggle: a saved choice from a previous chart
-        // if it's compatible with this one, otherwise data-primary + the
-        // other language (BILINGUAL-SPEC.md §4 — data-primary is "the
-        // default top layer").
-        const { langs, primary } = song.chart.meta;
+        // if it's compatible with this one, otherwise English first — the
+        // one site-wide default, regardless of a chart's own data-primary.
+        const { langs } = song.chart.meta;
         if (langs.length > 1 && song.langMode === undefined) {
             const savedMode = localStorage.getItem('chartLang');
-            const otherLang = langs.find(l => l !== primary) || langs[0];
-            const defaultMode = `${shortLang(primary)}-${shortLang(otherLang)}`;
+            const enTag = langs.find(l => l.toLowerCase().startsWith('en')) || langs[0];
+            const otherLang = langs.find(l => l !== enTag) || langs[0];
+            const defaultMode = `${shortLang(enTag)}-${shortLang(otherLang)}`;
             song.langMode = (savedMode && isModeAvailable(savedMode, langs)) ? savedMode : defaultMode;
         } else if (langs.length === 1 && song.langMode === undefined) {
             song.langMode = shortLang(langs[0]);
@@ -728,7 +733,11 @@ async function renderGenerate() {
                         </li>`;
     }).join('')}
                 </ul>
-                <button onclick="generateDoc()" class="btn btn-primary" style="margin-top: 1rem;">Download Word Doc</button>
+                <label style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; cursor: pointer; width: fit-content;">
+                    <input type="checkbox" id="include-pinyin-checkbox" ${includePinyin ? 'checked' : ''} onchange="setIncludePinyin(this.checked)">
+                    Include pinyin
+                </label>
+                <button onclick="generateDoc()" class="btn btn-primary" style="margin-top: 0.5rem;">Download Word Doc</button>
             ` : '<p>No songs selected. Go to <a href="#/search">Search</a> to add songs.</p>'}
         </section>
     `;
@@ -894,6 +903,12 @@ window.updateSetlistPlanLabel = (entryId, label) => {
     if (entry) entry.planLabel = label;
 };
 
+// Document-level, not per-entry — no re-render needed, generateDoc() just
+// reads the module variable when it's actually clicked.
+window.setIncludePinyin = (checked) => {
+    includePinyin = checked;
+};
+
 window.updateSetlistLangMode = (entryId, mode) => {
     const entry = selectedSongs.find(s => s.entryId === entryId);
     if (!entry) return;
@@ -919,6 +934,33 @@ window.updateSetlistSectionOverride = (entryId, sectionName, mode) => {
 // — no more regex-scraping renderChart()'s HTML output.
 
 const DOCX_RUN = { font: 'Courier New', size: 24 }; // 12pt
+
+// The pinyin row (BILINGUAL-SPEC.md §5.6) needs to read as a third category,
+// distinct from both the bold-blue chord row and the plain lyric row —
+// italic, smaller, and a mid-gray rather than a third arbitrary color, which
+// also happens to be the same "secondary text" register Word documents
+// conventionally use for captions. Deliberately DOCX_RUN.font (Courier New),
+// not cjkFont: this run is romanized Latin text with tone diacritics
+// (ā í ǐ ò ǔ …), not Han characters, and a CJK-oriented font substitution
+// (SimSun/Microsoft YaHei/JhengHei) is a real risk for exactly those
+// diacritics — Courier New is the one already confirmed to carry them.
+const PINYIN_RUN = { font: DOCX_RUN.font, size: 18, italics: true, color: '666666' }; // 9pt
+
+// A little vertical breathing room before every section header but the
+// first — matches what the on-screen v2 chart already does with
+// --chart-section-gap (.chart-section .section-header's margin-top in
+// style.css, zeroed only on :first-child). v1 got this for free from a
+// blank line already sitting in the chart source ahead of the header, which
+// holds for all but two charts (i-adore.html, can-t-stop-singing.html), so
+// making the gap explicit here — for both formats — stops the Word export
+// depending on that source convention holding everywhere. Half-height (6pt,
+// vs. a blank paragraph's ~12pt) rather than a full blank line, so the
+// two-column layout doesn't lose a whole extra line's worth of space twice
+// per boundary.
+function sectionGapParagraph() {
+    const { Paragraph } = window.docx;
+    return new Paragraph({ children: [], spacing: { before: 0, after: 0, line: 120, lineRule: 'exact' } });
+}
 function isSectionHeaderLineDoc(line) {
     const m = line.match(/^\[(.+)\]$/);
     return !!m && matchSectionHeader(m[1]) !== null;
@@ -966,14 +1008,22 @@ function buildV1DocBody(chart) {
     const { Paragraph, TextRun } = window.docx;
     const paragraphs = [];
     const allLines = chart.sections.flatMap(s => s.groups.flatMap(g => g.lines));
+    let sectionSeen = false;
 
-    for (const line of allLines) {
+    allLines.forEach((line, i) => {
         const trimmed = line.text.trim();
         if (!trimmed) {
+            // The gap paragraph below now guarantees the space before a
+            // header explicitly — skip a source blank line right ahead of
+            // one so the two don't stack into a double-height gap.
+            const next = allLines[i + 1];
+            if (next && isSectionHeaderLineDoc(next.text.trim())) return;
             paragraphs.push(new Paragraph({ children: [] }));
         } else if (line.kind === 'chord') {
             paragraphs.push(new Paragraph({ children: buildV1ChordRuns(line), spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' } }));
         } else if (isSectionHeaderLineDoc(trimmed)) {
+            if (sectionSeen) paragraphs.push(sectionGapParagraph());
+            sectionSeen = true;
             paragraphs.push(new Paragraph({
                 children: [new TextRun({ text: trimmed, bold: true, ...DOCX_RUN })],
                 spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' }
@@ -982,6 +1032,102 @@ function buildV1DocBody(chart) {
             paragraphs.push(new Paragraph({
                 children: [new TextRun({ text: line.text, ...DOCX_RUN })],
                 spacing: { before: 0, after: 0, line: 240, lineRule: 'auto' }
+            }));
+        }
+    });
+    return paragraphs;
+}
+
+// One section's worth of paragraphs at one explicit mode — the primary
+// showing and a `repeats` showing both call this, the only difference being
+// which mode they pass in and whether there's a performance note to print
+// above the content (never below the header, so it reads as an instruction
+// for this pass, not a lyric).
+function buildSectionParagraphs(section, mode, cjkFont, note, includePinyin = false, gapBefore = true) {
+    const { Paragraph, TextRun } = window.docx;
+    const paragraphs = [];
+    const spacingProps = { before: 0, after: 0, line: 240, lineRule: 'auto' };
+
+    if (section.name) {
+        if (gapBefore) paragraphs.push(sectionGapParagraph());
+        paragraphs.push(new Paragraph({
+            children: [new TextRun({ text: `[${section.name}]`, bold: true, ...DOCX_RUN })],
+            spacing: spacingProps
+        }));
+    }
+    if (note) {
+        paragraphs.push(new Paragraph({
+            children: [new TextRun({ text: note, italics: true, ...DOCX_RUN })],
+            spacing: spacingProps
+        }));
+    }
+
+    const wanted = MODE_LANGS_FOR_EXPORT[mode] || ['en'];
+
+    for (const group of section.groups) {
+        if (group.type === 'note') {
+            // {chords: <section>} (BILINGUAL-SPEC.md §5.4) is data-only —
+            // buildSongOrderTable already surfaces it as "*<section>" on
+            // this section's Song Order row, in context; printed here too
+            // it's just a bare "Verse 1" with nothing around it explaining
+            // what it means. Every other note kind still prints as-is.
+            if (group.kind !== 'chords') {
+                paragraphs.push(new Paragraph({
+                    children: [new TextRun({ text: group.text, italics: true, ...DOCX_RUN })],
+                    spacing: spacingProps
+                }));
+            }
+            continue;
+        }
+
+        if (group.type === 'chordline') {
+            const runs = [];
+            group.tokens.forEach((t, i) => {
+                if (i > 0) runs.push(new TextRun({ text: ' ', ...DOCX_RUN }));
+                runs.push(t.type === 'chord'
+                    ? new TextRun({ text: t.value, bold: true, color: '0000FF', ...DOCX_RUN })
+                    : new TextRun({ text: t.value, ...DOCX_RUN }));
+            });
+            paragraphs.push(new Paragraph({ children: runs, spacing: spacingProps }));
+            continue;
+        }
+
+        // group.type === 'lyric' — flatMap, not filter+map: a melisma
+        // unit's chords is a multi-item array (BILINGUAL-SPEC.md §5.2),
+        // and reading only unit.chords[0] here would silently drop the
+        // rest of the cluster from the exported chord line.
+        const chordSeq = (group.lines[0]?.units || []).flatMap(u => u.chords);
+        if (chordSeq.length > 0) {
+            const runs = [];
+            chordSeq.forEach((chord, i) => {
+                if (i > 0) runs.push(new TextRun({ text: '    ', ...DOCX_RUN }));
+                runs.push(new TextRun({ text: chord, bold: true, color: '0000FF', ...DOCX_RUN }));
+            });
+            paragraphs.push(new Paragraph({ children: runs, spacing: spacingProps }));
+        }
+
+        for (const shortLang of wanted) {
+            const line = group.lines.find(l => l.lang.toLowerCase().startsWith(shortLang));
+            if (!line) continue;
+
+            // Chord row, then pinyin row, then characters — pinyin only
+            // exists for a zh-* line (BILINGUAL-SPEC.md §5.6), so this
+            // never fires for the en row, and a section rendering in
+            // en-only mode never reaches this branch at all (shortLang
+            // never equals 'zh' when wanted = ['en']) — no extra gating
+            // needed for either case.
+            if (includePinyin && shortLang === 'zh' && line.pinyin) {
+                paragraphs.push(new Paragraph({
+                    children: [new TextRun({ text: line.pinyin, ...PINYIN_RUN })],
+                    spacing: spacingProps
+                }));
+            }
+
+            const text = line.units.map(u => u.text).join('');
+            const font = shortLang === 'zh' ? cjkFont : DOCX_RUN.font;
+            paragraphs.push(new Paragraph({
+                children: [new TextRun({ text, font, size: DOCX_RUN.size })],
+                spacing: spacingProps
             }));
         }
     }
@@ -993,65 +1139,32 @@ function buildV1DocBody(chart) {
 // language lines (BILINGUAL-SPEC.md §5.2), so reading it off the first line
 // is never lossy — followed by each language actually selected by the
 // entry's effective mode for that section, in its own font.
-function buildV2DocBody(chart, entry, cjkFont) {
-    const { Paragraph, TextRun } = window.docx;
+//
+// A `repeats` entry (BILINGUAL-SPEC.md §6.3) prints the same section again,
+// right after whichever section its `after` names — same splice-not-fork
+// shape as chart-render.js's renderV2, so screen and print can't disagree
+// about where a repeat lands. One naming a section this chart doesn't have
+// (or with no `after` at all) prints at the very end rather than being
+// silently dropped.
+function buildV2DocBody(chart, entry, cjkFont, includePinyin = false) {
     const paragraphs = [];
-    const spacingProps = { before: 0, after: 0, line: 240, lineRule: 'auto' };
+    const byName = new Map(chart.sections.filter(s => s.name).map(s => [s.name, s]));
+    const repeats = (entry.repeats || []).filter(r => byName.has(r.section));
 
-    for (const section of chart.sections) {
+    chart.sections.forEach((section, i) => {
+        paragraphs.push(...buildSectionParagraphs(section, effectiveModeForSection(entry, section.name), cjkFont, undefined, includePinyin, i > 0));
+
         if (section.name) {
-            paragraphs.push(new Paragraph({
-                children: [new TextRun({ text: `[${section.name}]`, bold: true, ...DOCX_RUN })],
-                spacing: spacingProps
-            }));
-        }
-
-        const wanted = MODE_LANGS_FOR_EXPORT[effectiveModeForSection(entry, section.name)] || ['en'];
-
-        for (const group of section.groups) {
-            if (group.type === 'note') {
-                paragraphs.push(new Paragraph({
-                    children: [new TextRun({ text: group.text, italics: true, ...DOCX_RUN })],
-                    spacing: spacingProps
-                }));
-                continue;
-            }
-
-            if (group.type === 'chordline') {
-                const runs = [];
-                group.tokens.forEach((t, i) => {
-                    if (i > 0) runs.push(new TextRun({ text: ' ', ...DOCX_RUN }));
-                    runs.push(t.type === 'chord'
-                        ? new TextRun({ text: t.value, bold: true, color: '0000FF', ...DOCX_RUN })
-                        : new TextRun({ text: t.value, ...DOCX_RUN }));
-                });
-                paragraphs.push(new Paragraph({ children: runs, spacing: spacingProps }));
-                continue;
-            }
-
-            // group.type === 'lyric'
-            const chordSeq = (group.lines[0]?.units || []).filter(u => u.chord).map(u => u.chord);
-            if (chordSeq.length > 0) {
-                const runs = [];
-                chordSeq.forEach((chord, i) => {
-                    if (i > 0) runs.push(new TextRun({ text: '    ', ...DOCX_RUN }));
-                    runs.push(new TextRun({ text: chord, bold: true, color: '0000FF', ...DOCX_RUN }));
-                });
-                paragraphs.push(new Paragraph({ children: runs, spacing: spacingProps }));
-            }
-
-            for (const shortLang of wanted) {
-                const line = group.lines.find(l => l.lang.toLowerCase().startsWith(shortLang));
-                if (!line) continue;
-                const text = line.units.map(u => u.text).join('');
-                const font = shortLang === 'zh' ? cjkFont : DOCX_RUN.font;
-                paragraphs.push(new Paragraph({
-                    children: [new TextRun({ text, font, size: DOCX_RUN.size })],
-                    spacing: spacingProps
-                }));
+            for (const r of repeats.filter(r => r.after === section.name)) {
+                paragraphs.push(...buildSectionParagraphs(byName.get(r.section), r.mode, cjkFont, r.note, includePinyin));
             }
         }
+    });
+
+    for (const r of repeats.filter(r => !r.after || !byName.has(r.after))) {
+        paragraphs.push(...buildSectionParagraphs(byName.get(r.section), r.mode, cjkFont, r.note, includePinyin));
     }
+
     return paragraphs;
 }
 
@@ -1059,6 +1172,12 @@ function buildV2DocBody(chart, entry, cjkFont) {
 // name (+ any {note:} annotations from the chart) and the effective
 // language for that section, matching the two-column, header-row layout
 // reverse-engineered from a real service pack (tools/docx-to-chart.mjs).
+//
+// A `repeats` entry gets its own row, right after the section it's an
+// `after` of — same splice position as buildV2DocBody, so the table at the
+// top of the doc matches the body underneath it. Its own note (if any)
+// folds into the same "*note" convention already used for a chart's own
+// {note:} annotations, rather than inventing a second notation for it.
 function buildSongOrderTable(chart, entry) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType } = window.docx;
     const namedSections = chart.sections.filter(s => s.name);
@@ -1070,17 +1189,31 @@ function buildSongOrderTable(chart, entry) {
         children: [new TableCell({ columnSpan: 2, children: [cellText('Song Order:', { bold: true })] })]
     });
 
-    const rows = namedSections.map(section => {
-        const notes = section.groups.filter(g => g.type === 'note').map(g => g.text);
-        const label = notes.length ? `${section.name} *${notes.join('; ')}` : section.name;
-        const mode = effectiveModeForSection(entry, section.name);
+    const byName = new Map(namedSections.map(s => [s.name, s]));
+    const repeats = (entry.repeats || []).filter(r => byName.has(r.section));
+
+    const rowFor = (section, mode, note) => {
+        const chartNotes = section.groups.filter(g => g.type === 'note').map(g => g.text);
+        const allNotes = note ? [...chartNotes, note] : chartNotes;
+        const label = allNotes.length ? `${section.name} *${allNotes.join('; ')}` : section.name;
         return new TableRow({
             children: [
                 new TableCell({ children: [cellText(label, { bold: true })] }),
                 new TableCell({ children: [cellText(mode.toUpperCase())] })
             ]
         });
-    });
+    };
+
+    const rows = [];
+    for (const section of namedSections) {
+        rows.push(rowFor(section, effectiveModeForSection(entry, section.name)));
+        for (const r of repeats.filter(r => r.after === section.name)) {
+            rows.push(rowFor(byName.get(r.section), r.mode, r.note));
+        }
+    }
+    for (const r of repeats.filter(r => !r.after || !byName.has(r.after))) {
+        rows.push(rowFor(byName.get(r.section), r.mode, r.note));
+    }
 
     return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...rows] });
 }
@@ -1131,7 +1264,7 @@ window.generateDoc = async () => {
             if (isBilingual) {
                 const table = buildSongOrderTable(transposedChart, entry);
                 if (table) children.push(table);
-                children.push(...buildV2DocBody(transposedChart, entry, cjkFontForLangs(transposedChart.meta.langs)));
+                children.push(...buildV2DocBody(transposedChart, entry, cjkFontForLangs(transposedChart.meta.langs), includePinyin));
             } else {
                 children.push(...buildV1DocBody(transposedChart));
             }

@@ -12,9 +12,12 @@ change instead of something you re-explain each session.
 
 - One song = one entity = one chart file, regardless of how many languages it has.
 - Chord/lyric alignment that does not depend on monospace character counting.
-- Per-section language selection ("Verse in Chinese, Chorus in English") as data.
+- Per-section language selection ("Verse in Chinese, Chorus in English") as data
+  — scoped to the setlist builder and its Word doc export (§6.3), not the song
+  page itself; see that section for why.
 - Mandarin-only songs handled by the same code path as bilingual ones.
-- Zero required changes to the 308 existing English charts.
+- Zero required changes to the v1 English charts, except the rare one that
+  already contains v2-only marker syntax (§5.4) it can't actually render.
 
 **Non-goals**
 
@@ -30,15 +33,14 @@ change instead of something you re-explain each session.
 
 | Wrapper | Parser | Notes |
 |---|---|---|
-| `<pre class="chord-chart" data-key="G">` | v1 (existing) | 308 files. Untouched. |
-| `<pre class="chord-chart" data-key="A" data-format="bilingual">` | v2 (new) | Bilingual + Mandarin-only. |
+| `<pre class="chord-chart" data-key="G">` | v1 | 303 files. |
+| `<pre class="chord-chart" data-key="A" data-format="bilingual">` | v2 | 8 files — bilingual + Mandarin-only. |
 
-`fetchSongContent()` must branch on `data-format`. Everything without it keeps using
-`transposeText()` exactly as it does today.
+`fetchSongContent()` branches on `data-format`; everything without it goes through
+`parseChartBody()`'s v1 path exactly as before.
 
-**Also change while you're in there:** `fetchSongContent()` currently extracts the chart
-with `html.match(/<pre[^>]*data-key="([^"]+)"[^>]*>(.*?)<\/pre>/s)`, which can only pull
-one attribute. Replace it with `DOMParser` so all `data-*` attributes are available:
+It extracts the chart with `DOMParser`, not a regex, so every `data-*` attribute rides
+through as-is:
 
 ```js
 const doc  = new DOMParser().parseFromString(html, 'text/html');
@@ -46,6 +48,10 @@ const pre  = doc.querySelector('pre.chord-chart');
 const meta = { ...pre.dataset };            // { key, format, langs, ... }
 const body = pre.textContent;
 ```
+
+A chart can gain a new `data-*` attribute without this call site needing to know its
+name — `parseChartBody()` (`js/chart-parser.js`) is the only place that reads specific
+keys out of `meta`.
 
 ---
 
@@ -67,9 +73,22 @@ commits whatever the filesystem gave it. `charts/S/圣洁到永远.html` will wo
 and 404 on gh-pages. Percent-encoding in `songs.json` does not save you — the bytes on
 disk differ. Keep Chinese titles in `songs.json`, keep filenames ASCII.
 
-While migrating, it's worth normalising the existing v1 filenames to slugs too
-(`God%20Be%20Praised.html` → `god-be-praised.html`), since `songs.json` is the only thing
-that references them. Optional, but it removes a whole class of URL-encoding bugs.
+### Case matters too, for the same reason
+
+macOS's default filesystem is case-*insensitive but case-preserving* — `Captain.html` and
+`captain.html` are the same file to git status, `git status` shows nothing changed, and
+`songs.json` can point at the lowercase URL while the tracked path is still capitalized,
+and everything still works locally. gh-pages serves from a case-*sensitive* Linux
+filesystem, where those are two different paths and the mismatched one 404s. If a rename
+changes *only* case, plain `git mv` on macOS won't register it — go through a temporary
+name (`git mv Foo.html Foo.html.tmp && git mv Foo.html.tmp foo.html`) so git's tracked
+path actually changes, then confirm with `git ls-files` (not `git status`, which is what
+missed it originally).
+
+All existing v1 filenames are already normalised to ASCII, lowercase, hyphenated slugs
+(`god-be-praised.html`), matching `songs.json`'s `url` for every entry — `songs.json` is
+the only thing that references a chart's path, so this removes a whole class of
+URL-encoding and case-mismatch bugs at once. Keep new charts on the same convention.
 
 ---
 
@@ -302,15 +321,27 @@ laid out horizontally inside the same chord slot, not stacked:
 chord is just a one-item cluster, which is why `data-chord` lives on `.chord-name` now
 rather than on `.chord` itself.
 
-Add to your token set in `style.css`:
+`style.css`'s token set:
 
 ```css
 --font-mono-cjk: 'Noto Sans Mono CJK SC', 'Noto Sans Mono CJK TC',
                  'Noto Sans Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
 ```
 
-Preload the CJK face alongside the Noto Serif / Manrope pair already in `index.html`.
-Subset it if the download size bothers you — a praise-song corpus needs maybe 1,500 glyphs.
+`PingFang SC` covers iOS/macOS as a real system-font fallback if the webfont fails to
+load; there's no equally universal Android equivalent in the chain, so a load failure or
+missing glyph there falls all the way to generic `monospace`, which isn't guaranteed to
+carry CJK glyphs on every Android build.
+
+The two faces the stack's first two entries name are self-hosted (`fonts/*.woff2`, one
+per script so Simplified and Traditional charts each keep correct glyph shapes) and
+`<link rel="preload">`ed in `index.html` — Google Fonts doesn't serve this family at all.
+`tools/subset-cjk-font.mjs` builds them from the ~16MB source OTFs down to only the Han
+characters actually used across the repo's `zh-Hans`/`zh-Hant` chart content (currently
+~30KB / ~78KB) — **re-run it after adding or editing bilingual charts with new
+characters**; it's a superset-of-current-usage snapshot, not a fixed character list, and
+a chart added without a re-run will fall back past the subset font for any character it
+doesn't cover.
 
 ### 6.2 Language modes
 
@@ -444,7 +475,8 @@ Mandarin-only songs use `title` for the Chinese name and set `langs: ["zh-Hans"]
    borrowed chord (bVI, bVII) — not a strict first-chord-equals-key match, since worship
    charts routinely open on an intro/pickup chord (IV, V, vi) rather than the tonic.
 6. Every `songs.json` `url` resolves to a file on disk, and every chart file appears in
-   `songs.json`. (Worth running against your current 308 too — orphans accumulate.)
+   `songs.json`. (Runs against the full current catalog — currently 311 charts — every
+   time; orphans accumulate if this ever goes unwarned.)
 7. No non-ASCII bytes in any path under `charts/`.
 8. Every chord in a section following a `{modulate: n}` marker (§5.4) is diatonic to
    `data-key` transposed by `n`, or a common borrowed chord (bVI, bVII) — same diatonic
@@ -482,25 +514,38 @@ tools/
   build-index.mjs      # derives titleZhAlt, pinyin, pinyinInitials → songs.json
   validate-charts.mjs  # §8
   docx-to-chart.mjs    # converts a service-pack .docx into v2 chart files
+  subset-cjk-font.mjs  # rebuilds fonts/*.woff2 from current chart content (§6.1)
+  lib/
+    chart-file.mjs     # <pre class="chord-chart">...</pre> extraction (regex, no DOM) —
+                        # shared by validate-charts.mjs and build-index.mjs
+    pinyin.mjs         # py: generation/diff logic — shared by build-index.mjs (writes it)
+                        # and validate-charts.mjs rule 12 (checks it), so the two can't drift
 ```
 
 `build-index.mjs` uses `pinyin-pro` and `opencc-js`, runs locally, and commits its output —
 gh-pages serves static files, so nothing runs at request time and there's no runtime
 dependency to load.
 
-`docx-to-chart.mjs` is the highest-leverage one: you already have years of bilingual
-service packs in exactly the shape of `20260510_Team_2__Euan__Combined_Service_.docx`
-(chord run, English run, Chinese run, repeat). Converting them beats retyping.
+`docx-to-chart.mjs` is the highest-leverage one: a song boundary in the source `.docx` is
+either a Heading3-styled paragraph (a clean pack that uses Word paragraph styles) or a
+bold+italic paragraph (a messier pack that never uses styles at all) — either shape
+converts, including writing `{modulate:}`/`{chords:}` markers where the source calls for
+them. You already have years of bilingual service packs in roughly this shape (chord run,
+English run, Chinese run, repeat, one song after another). Converting them beats retyping.
 
 ---
 
-## 10. Migration order
+## 10. Status
 
-1. Parser + renderer + language toggle, behind `data-format`. Ship with one hand-written
-   chart to prove it.
-2. `docx-to-chart.mjs`, run over your existing service packs. Hand-check the output — the
-   Word docs use hand-padded spacing, so syllable-to-chord binding needs eyes on it.
-3. Search index + language filter chips.
-4. Setlist language plan + docx export of the Song Order table.
-5. CI validator.
-6. Pinyin ruby layer.
+All of parser + renderer + language toggle, `docx-to-chart.mjs`, the search index,
+setlist-builder docx export, the CI validator, and the pinyin ruby layer are built and
+in use — this section is no longer a to-do list. `data/setlists/<slug>.json` sidecars are
+kept as an archival record only (§6.3); nothing else here is provisional. Treat the rest
+of this document as the current contract, not a plan.
+
+One caveat, discovered the hard way: converting a v1 chart to v2 by hand (chord-line-above-
+lyric → inline `[chord]` tokens) requires binding each chord to a specific character by
+ear or by careful reading, not by blindly transcribing the source file's column
+positions — a v1 chart's chord/lyric alignment was only ever meant to be read visually, not
+measured. Two charts converted this way in the same batch can look identically "aligned"
+in the original and still need different judgment calls converting.

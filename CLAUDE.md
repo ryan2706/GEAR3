@@ -85,10 +85,15 @@ For my waking breath, for my daily bread
   `Pre-Chorus`, `Chorus`, `Bridge`, `Interlude`, `Tag`, `Instrumental`, `Ending`,
   `Coda`, `Outro`, optionally suffixed with a number) — the list lives in
   `chart-constants.js`. Don't invent new bracket syntax without updating it.
-- This is the **v1** format, used by 308 of the 312 existing charts. **v2
-  (bilingual)** is a distinct wrapper (`data-format="bilingual"`, 4 charts so
+- This is the **v1** format, used by 303 of the 311 existing charts. **v2
+  (bilingual)** is a distinct wrapper (`data-format="bilingual"`, 8 charts so
   far) — see below. Never migrate a v1 chart to v2 just to "clean it up"; v1
-  stays valid indefinitely.
+  stays valid indefinitely. The one real exception: a v1 chart that already
+  contains `{goto:}`/`{repeat:}`/`{segue:}`/`{modulate:}`/`{chords:}` marker
+  syntax (BILINGUAL-SPEC.md §5.4) *must* migrate — v1 has no curly-brace
+  parsing at all, so the marker silently renders as literal text instead of
+  failing loudly. `tools/validate-charts.mjs` rule 10 fails the build on
+  this; if it fires, the fix is migrating that chart, not muting the rule.
 
 ## `data/songs.json` is the single index
 
@@ -120,14 +125,16 @@ define its own colours.
 
 ## Bilingual work: `BILINGUAL-SPEC.md` is the contract
 
-Any change touching multiple languages in a chart — Mandarin lyrics, per-section
-language selection, pinyin, the `data-format="bilingual"` wrapper, changes to
-`fetchSongContent()`'s parsing, or new fields in `songs.json` like `titleZh` /
-`langs` — must follow `BILINGUAL-SPEC.md`, not be improvised. It covers file
-naming (ASCII-only paths — Han characters in filenames break across macOS/Linux/
-git), the `data-langs`/`data-primary` attributes, line-group chord-sequence
-validation, and the migration order. Read it in full before starting bilingual
-work; don't partially implement v2 without it.
+Any change touching multiple languages in a chart — Mandarin lyrics, pinyin, the
+`data-format="bilingual"` wrapper, changes to `fetchSongContent()`'s parsing, or
+new fields in `songs.json` like `titleZh` / `langs` — must follow
+`BILINGUAL-SPEC.md`, not be improvised. It covers file naming (ASCII-only paths
+— Han characters in filenames break across macOS/Linux/git), the
+`data-langs`/`data-primary` attributes, and line-group chord-sequence
+validation. Read it in full before starting bilingual work; don't partially
+implement a v2 feature without it. Per-section language selection is a setlist-
+builder / docx-export-only feature now (BILINGUAL-SPEC.md §6.3) — the song page
+itself has no per-section control, so don't reintroduce one there.
 
 Setlist sidecars record what a specific team performed at a specific service.
 Never infer a language plan, planLabel, or section order from chart content or

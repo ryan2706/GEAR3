@@ -210,9 +210,16 @@ translator credits, TODOs.
 
 ### 5.6 Generated layers
 
-`py:` (pinyin) is **generated at build time, never authored**. The build script derives it
-from the `zh-*` line and writes it back. Hand-edits get overwritten — if a reading is
-wrong, fix it in the build script's exception map, not the chart.
+`py:` (pinyin) is **generated at build time, never authored**. `tools/build-index.mjs`
+derives it from the `zh-*` line immediately above (via `pinyin-pro`, corrected by
+`tools/pinyin-exceptions.json`) and writes it back — idempotent, safe to re-run any time a
+lyric or the exception map changes. Hand-edits get overwritten on the next run; if a
+reading is wrong, fix it in `tools/pinyin-exceptions.json`, not the chart. The first time a
+chart file gets a `py:` line written into it, the script also prepends an HTML comment
+directly above the `<pre>` saying so — the file itself carries the warning, not only this
+spec. `tools/validate-charts.mjs` rule 12 (§8) warns when a chart's `py:` lines don't match
+what the generator would currently produce (missing, or stale after a hand-edit or an
+unregenerated lyric change).
 
 ---
 
@@ -321,6 +328,29 @@ Choose the accidental from the target key:
 sharp keys: G D A E B F#
 flat keys:  F Bb Eb Ab Db Gb
 ```
+
+### 6.5 Pinyin rendering
+
+A "Show Pinyin" toggle appears on the song page whenever the chart has at least one
+generated `.pinyin` reading (§5.6) — a chart with no `py:` lines at all shows no toggle,
+rather than one that does nothing. The choice persists in `localStorage` under
+`showPinyin`, the same pattern as `theme` and `chartLang`.
+
+When on, pinyin renders above each Chinese character using `<ruby>`/`<rt>` — one reading
+per character, zipped 1:1 against `.pinyin`'s space-separated syllables (§5.6's generation
+rule is what guarantees that count matches). Browsers without `<ruby>` support (detected
+once, via `document.createElement('ruby') instanceof HTMLUnknownElement`) fall back to a
+plain stacked line — the whole `.pinyin` string rendered as its own line directly above the
+Chinese line, no per-character alignment. The same stacked fallback also applies, even on a
+`<ruby>`-capable browser, the moment a line's character count and syllable count disagree
+(a malformed or hand-edited `.pinyin` slipping past rule 12) — misaligned `<ruby>` pairs
+would be actively misleading, a plain line above isn't.
+
+Pinyin rendering composes with every language mode (§6.2) and with `en-zh`/`zh-en`'s
+line-by-line pairing without special-casing: it's driven entirely by whether the line being
+rendered is Chinese and carries a `.pinyin`, not by which mode produced that line. In
+`zh`-only mode it's the same mechanism doing the most work — a team member who reads pinyin
+but not Han characters can follow a chart that's otherwise unreadable to them.
 
 ---
 

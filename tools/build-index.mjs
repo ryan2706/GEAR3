@@ -88,14 +88,14 @@ import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenCC from 'opencc-js';
-import { pinyin, customPinyin } from 'pinyin-pro';
+import { pinyin } from 'pinyin-pro';
 import { extractPre } from './lib/chart-file.mjs';
+import { loadPinyinExceptions, diffPinyinLines, applyPinyinDiffs, PINYIN_GENERATED_COMMENT } from './lib/pinyin.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SONGS_PATH = path.join(REPO_ROOT, 'data', 'songs.json');
 const CHARTS_DIR = path.join(REPO_ROOT, 'charts');
-const EXCEPTIONS_PATH = path.join(__dirname, 'pinyin-exceptions.json');
 
 const toTraditional = OpenCC.Converter({ from: 'cn', to: 'tw' });
 const toSimplified = OpenCC.Converter({ from: 'tw', to: 'cn' });
@@ -119,21 +119,10 @@ function generatePinyinFields(titleZh) {
 }
 
 // ── chart-file py: injection (BILINGUAL-SPEC.md §5.6) ──
-
-const ZH_LINE_RE = /^(zh(?:-[A-Za-z]+)?):\s*(.*)$/i;
-const PY_LINE_RE = /^py:\s*(.*)$/i;
-
-function stripChordBrackets(text) {
-    return text.replace(/\[[^\]]*\]/g, '');
-}
-
-// One toned syllable per input character, punctuation included as its own
-// pass-through token — see the "known limitation" note in the file header
-// on why that property matters (it's what lets the renderer zip pinyin
-// against Han characters 1:1 for ruby annotation).
-function generateLinePinyin(zhLyricText) {
-    return pinyin(stripChordBrackets(zhLyricText), { toneType: 'symbol' });
-}
+//
+// The actual "what should py: say" logic (and the diff/apply split) lives
+// in tools/lib/pinyin.mjs, shared with validate-charts.mjs's rule 12 — see
+// that file for the generation rules.
 
 async function walkFiles(dir) {
     const out = [];
@@ -146,47 +135,23 @@ async function walkFiles(dir) {
     return out;
 }
 
-// Walks a chart body line by line, writing a fresh py: line beneath every
-// zh-* line — replacing one that's already there (regeneration, so a
-// changed lyric or a new exception-map entry gets picked up on the next
-// run) or inserting a new one if there isn't. Returns the possibly-modified
-// body plus how many py: lines were written or changed, so the caller can
-// skip rewriting files that didn't need it.
-function injectPinyin(bodyText) {
-    const lines = bodyText.split('\n');
-    const output = [];
-    let changedCount = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-        output.push(lines[i]);
-
-        const zhMatch = lines[i].trim().match(ZH_LINE_RE);
-        if (!zhMatch) continue;
-
-        const pyLine = `py: ${generateLinePinyin(zhMatch[2])}`;
-        const next = i + 1 < lines.length ? lines[i + 1] : null;
-
-        if (next !== null && PY_LINE_RE.test(next.trim())) {
-            if (next !== pyLine) changedCount++;
-            lines[i + 1] = pyLine; // picked up by the loop on the next iteration
-        } else {
-            output.push(pyLine);
-            changedCount++;
-        }
-    }
-
-    return { text: output.join('\n'), changedCount };
-}
-
 async function updateChartFile(filePath, log) {
     const content = await readFile(filePath, 'utf8');
     const pre = extractPre(content);
     if (!pre || pre.format !== 'bilingual') return 0;
 
-    const { text: newBody, changedCount } = injectPinyin(pre.body);
+    const diffs = diffPinyinLines(pre.body);
+    const { text: newBody, changedCount } = applyPinyinDiffs(pre.body, diffs);
     if (changedCount === 0) return 0;
 
-    const newContent = content.slice(0, pre.openEnd) + newBody + content.slice(pre.closeIdx);
+    // Prepend the "generated, don't hand-edit" marker the first time this
+    // file gets py: lines written into it — outside the <pre>, since an
+    // HTML comment inside it would be parsed as chart body text, not a
+    // comment (chart-parser.js's grammar has no concept of one).
+    const alreadyMarked = content.slice(0, pre.openEnd).includes(PINYIN_GENERATED_COMMENT);
+    const prefix = alreadyMarked ? '' : PINYIN_GENERATED_COMMENT + '\n';
+
+    const newContent = prefix + content.slice(0, pre.openEnd) + newBody + content.slice(pre.closeIdx);
     await writeFile(filePath, newContent, 'utf8');
     log(`${path.relative(REPO_ROOT, filePath)}: ${changedCount} py: line(s) written/updated`);
     return changedCount;
@@ -213,9 +178,8 @@ function reorder(record) {
 async function main() {
     const log = (msg) => console.log(msg);
 
-    const exceptions = JSON.parse(await readFile(EXCEPTIONS_PATH, 'utf8'));
-    customPinyin(exceptions); // applies to every pinyin() call below, both jobs
-    log(`Loaded ${Object.keys(exceptions).length} pinyin exception(s) from ${path.relative(REPO_ROOT, EXCEPTIONS_PATH)}\n`);
+    const exceptions = await loadPinyinExceptions(); // applies to every pinyin() call below, both jobs
+    log(`Loaded ${Object.keys(exceptions).length} pinyin exception(s) from tools/pinyin-exceptions.json\n`);
 
     // ── job 1: data/songs.json generated fields ──
     log('── songs.json ──');

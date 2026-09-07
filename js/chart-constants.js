@@ -54,3 +54,15 @@ export function matchSectionHeader(raw) {
     }
     return null;
 }
+
+// Shared with tools/docx-to-chart.mjs (which names its output chart/sidecar
+// files this way) so the browser can derive the *same* slug from a song's
+// title at runtime — e.g. to fetch data/setlists/<slug>.json — without the
+// two ever drifting apart the way two independent copies eventually would.
+export function slugify(title) {
+    return title
+        .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}

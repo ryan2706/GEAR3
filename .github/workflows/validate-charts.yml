@@ -23,3 +23,12 @@ jobs:
       # to install before running it.
       - name: Validate chord charts (BILINGUAL-SPEC.md §8)
         run: node tools/validate-charts.mjs
+
+      # Unlike validate-charts.mjs, the test suite spawns
+      # tools/docx-to-chart.mjs (tests/docx-to-chart.test.mjs), which does
+      # import npm packages (@xmldom/xmldom, jszip) — install first.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test

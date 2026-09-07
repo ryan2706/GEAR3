@@ -260,10 +260,12 @@ function songLanguageCategory(song) {
     return 'en';
 }
 
+// No 'zh' (Chinese-only) chip — the catalog currently has zero Mandarin-only
+// songs, so that filter could never match anything. songLanguageCategory()
+// still returns 'zh' for one if it's ever added; re-add the chip then.
 const LANG_FILTERS = [
     { key: 'all', label: 'All' },
     { key: 'en', label: 'EN' },
-    { key: 'zh', label: '中' },
     { key: 'bilingual', label: 'EN/中' }
 ];
 

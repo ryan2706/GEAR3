@@ -274,9 +274,39 @@ const LANG_FILTERS = [
     { key: 'bilingual', label: 'EN/中' }
 ];
 
+// Locale-aware alphabetical sort by English title, applied before any lang
+// filter or search-relevance ranking so the search page's list order is
+// predictable in every filter mode (All/EN/EN/中), not just insertion order
+// from songs.json. A leading "The " or "A " is ignored for sort purposes
+// only — the rendered title is untouched — so "The Power of Your Love"
+// files under P, not T.
+//
+// Intl.Collator (not a raw string sort) is what makes "10,000 Reasons" and
+// titles with punctuation or accents land sensibly rather than by raw
+// UTF-16 code unit. `numeric: true` compares embedded digit runs by value;
+// with only one digit-led title in the catalog it has no other numeric
+// title to sort against, but it's the correct default if more are added.
+// Where "10,000 Reasons" actually lands: *first*, ahead of every letter
+// title — the default collation orders digits before letters, same as
+// plain "1" < "A". If you'd rather it file alphabetically as if spelled out
+// ("Ten Thousand Reasons", under T) or in its own bucket, say so; that needs
+// a hand-authored sort key, not something the collator infers from "10,000".
+const TITLE_SORT_ARTICLE_RE = /^(the|a)\s+/i;
+const titleCollator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+
+function titleSortKey(title) {
+    return title.replace(TITLE_SORT_ARTICLE_RE, '');
+}
+
+function sortSongsByTitle(songs) {
+    return [...songs].sort((a, b) => titleCollator.compare(titleSortKey(a.title), titleSortKey(b.title)));
+}
+
 // Two-tier ranking: an exact-prefix match in any searchable field outranks
-// a substring-only match anywhere else. Ties keep the catalog's original
-// order (Array.prototype.sort is stable).
+// a substring-only match anywhere else. Ties keep the pool's incoming order
+// (Array.prototype.sort is stable) — callers pass an already
+// alphabetically-sorted pool (see sortSongsByTitle above) so ties land
+// alphabetically rather than in songs.json's insertion order.
 function matchSongs(songs, query) {
     const q = query.trim().toLowerCase();
     if (!q) return songs;
@@ -316,7 +346,7 @@ async function renderSearch() {
             <div class="key-pills lang-filter-chips">${chipsHtml}</div>
             <input type="text" id="search-input" placeholder="Search by title..." class="search-input">
             <div id="song-list" class="song-list">
-                ${renderSongList(songsData)}
+                ${renderSongList(sortSongsByTitle(songsData))}
             </div>
         </section>
     `;
@@ -326,6 +356,7 @@ async function renderSearch() {
         let pool = activeLangFilter === 'all'
             ? songsData
             : songsData.filter(s => songLanguageCategory(s) === activeLangFilter);
+        pool = sortSongsByTitle(pool);
         pool = matchSongs(pool, query);
         document.getElementById('song-list').innerHTML = renderSongList(pool);
     };

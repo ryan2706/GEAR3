@@ -85,15 +85,16 @@ For my waking breath, for my daily bread
   `Pre-Chorus`, `Chorus`, `Bridge`, `Interlude`, `Tag`, `Instrumental`, `Ending`,
   `Coda`, `Outro`, optionally suffixed with a number) — the list lives in
   `chart-constants.js`. Don't invent new bracket syntax without updating it.
-- This is the **v1** format, used by 303 of the 311 existing charts. **v2
-  (bilingual)** is a distinct wrapper (`data-format="bilingual"`, 8 charts so
-  far) — see below. Never migrate a v1 chart to v2 just to "clean it up"; v1
-  stays valid indefinitely. The one real exception: a v1 chart that already
-  contains `{goto:}`/`{repeat:}`/`{segue:}`/`{modulate:}`/`{chords:}` marker
-  syntax (BILINGUAL-SPEC.md §5.4) *must* migrate — v1 has no curly-brace
-  parsing at all, so the marker silently renders as literal text instead of
-  failing loudly. `tools/validate-charts.mjs` rule 10 fails the build on
-  this; if it fires, the fix is migrating that chart, not muting the rule.
+- This is the **v1** format, used by the large majority of existing charts.
+  **v2 (bilingual)** is a distinct wrapper (`data-format="bilingual"`, a
+  growing minority) — see below. Never migrate a v1 chart to v2 just to
+  "clean it up"; v1 stays valid indefinitely. The one real exception: a v1
+  chart that already contains `{goto:}`/`{repeat:}`/`{segue:}`/`{modulate:}`/
+  `{chords:}` marker syntax (BILINGUAL-SPEC.md §5.4) *must* migrate — v1 has
+  no curly-brace parsing at all, so the marker silently renders as literal
+  text instead of failing loudly. `tools/validate-charts.mjs` rule 10 fails
+  the build on this; if it fires, the fix is migrating that chart, not
+  muting the rule.
 
 ## `data/songs.json` is the single index
 

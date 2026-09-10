@@ -33,8 +33,8 @@ change instead of something you re-explain each session.
 
 | Wrapper | Parser | Notes |
 |---|---|---|
-| `<pre class="chord-chart" data-key="G">` | v1 | 303 files. |
-| `<pre class="chord-chart" data-key="A" data-format="bilingual">` | v2 | 8 files — bilingual + Mandarin-only. |
+| `<pre class="chord-chart" data-key="G">` | v1 | The large majority of charts. |
+| `<pre class="chord-chart" data-key="A" data-format="bilingual">` | v2 | A growing minority — bilingual + Mandarin-only. |
 
 `fetchSongContent()` branches on `data-format`; everything without it goes through
 `parseChartBody()`'s v1 path exactly as before.
@@ -475,7 +475,7 @@ Mandarin-only songs use `title` for the Chinese name and set `langs: ["zh-Hans"]
    borrowed chord (bVI, bVII) — not a strict first-chord-equals-key match, since worship
    charts routinely open on an intro/pickup chord (IV, V, vi) rather than the tonic.
 6. Every `songs.json` `url` resolves to a file on disk, and every chart file appears in
-   `songs.json`. (Runs against the full current catalog — currently 311 charts — every
+   `songs.json`. (Runs against the full current catalog, whatever its size, every
    time; orphans accumulate if this ever goes unwarned.)
 7. No non-ASCII bytes in any path under `charts/`.
 8. Every chord in a section following a `{modulate: n}` marker (§5.4) is diatonic to

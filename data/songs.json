@@ -2096,7 +2096,10 @@
     "langs": [
       "en",
       "zh-Hans"
-    ]
+    ],
+    "ccli": "5607039",
+    "bpm": "128",
+    "timeSignature": "4/4 time"
   },
   {
     "title": "It Came Upon a Midnight Clear",
@@ -2105,7 +2108,10 @@
     "langs": [
       "en",
       "zh-Hant"
-    ]
+    ],
+    "ccli": "31078",
+    "bpm": "120",
+    "timeSignature": "6/8 time"
   },
   {
     "title": "Hark! the Herald Angels Sing",
@@ -2114,6 +2120,9 @@
     "langs": [
       "en",
       "zh-Hans"
-    ]
+    ],
+    "ccli": "7014599",
+    "bpm": "109",
+    "timeSignature": "4/4 time"
   }
 ]

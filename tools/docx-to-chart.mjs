@@ -2,17 +2,24 @@
 // tools/docx-to-chart.mjs
 //
 // Converts bilingual service-pack .docx files into v2 chart files per
-// BILINGUAL-SPEC.md. A song boundary is either a Heading3-styled paragraph
-// (the clean pack this tool was originally written against — "ENGLISH TITLE
-// 中文標題", credit/copyright lines, "CCLI Song #:", a "Key: / Time: / BPM ="
-// line, an optional Song Order table) or a bold+italic paragraph (messier
-// packs that never use paragraph styles at all, where the title may also
-// carry a leading service-role marker like "RESPONSE:" and/or a trailing
-// key marker like "(C)", and none of the CCLI/Key/Time/BPM metadata lines
-// may be present at all). Either way, the chart body itself is the same
-// shape: repeating (bold chord line, English lyric line, Chinese lyric
-// line) groups, except a later verse commonly omits its own chord line
-// and reuses an earlier one instead (see `{chords: ...}` below).
+// BILINGUAL-SPEC.md. A song boundary is one of three shapes. Either a
+// Heading3-styled paragraph (the clean pack this tool was originally written
+// against — "ENGLISH TITLE 中文標題", credit/copyright lines, "CCLI Song #:",
+// a "Key: / Time: / BPM =" line, an optional Song Order table) or a
+// bold+italic paragraph (messier packs that never use paragraph styles at
+// all, where the title may also carry a leading service-role marker like
+// "RESPONSE:" and/or a trailing key marker like "(C)", and none of the
+// CCLI/Key/Time/BPM metadata lines may be present at all) — both of these
+// combine English and Chinese on the *same* title paragraph. Or, a third
+// shape: two separate bold-only paragraphs, English then Chinese, each with
+// its own trailing "[Key]" marker in *square* brackets — no Heading3, no
+// italic anywhere in the document, so a title is only recognizable by
+// elimination (bold, not a chord line, not a section header) and by being
+// followed by a second such paragraph whose text is Chinese; see
+// isBoldTitlePair() below. Whichever shape, the chart body itself is the
+// same: repeating (bold chord line, English lyric line, Chinese lyric line)
+// groups, except a later verse commonly omits its own chord line and reuses
+// an earlier one instead (see `{chords: ...}` below).
 //
 // ── How to run ──
 //
@@ -395,6 +402,21 @@ function stripTrailingKeyParen(rawTitle) {
     return { title: m[1], key: inner.charAt(0).toUpperCase() + inner.slice(1) };
 }
 
+// Sibling of stripTrailingKeyParen for the bold-only pack (see the header
+// comment's third shape): the trailing key marker there is square-bracketed
+// ("... [G]") rather than parenthesized ("... (C)"). Square brackets are
+// also section-header syntax ("[Verse 1]"), but that never collides here: a
+// standalone header line is *entirely* the bracket, while a title's trailing
+// key marker always has real title text before it — isBoldPlainParagraph()
+// already rejects any line that is only a bracket before this ever runs.
+function stripTrailingKeyBracket(rawTitle) {
+    const m = rawTitle.match(/^(.*?)\s*\[([^\[\]]+)\]\s*$/);
+    if (!m) return { title: rawTitle, key: undefined };
+    const inner = m[2].trim();
+    if (!KEY_TOKEN_RE.test(inner)) return { title: rawTitle, key: undefined };
+    return { title: m[1], key: inner.charAt(0).toUpperCase() + inner.slice(1) };
+}
+
 function splitTitle(rawTitle) {
     const { title: withoutRole, role } = stripRolePrefix(rawTitle.trim());
     const { title: withoutKey, key } = stripTrailingKeyParen(withoutRole.trim());
@@ -404,6 +426,25 @@ function splitTitle(rawTitle) {
         titleEn: titleCase(withoutKey.slice(0, m.index).trim()),
         titleZh: withoutKey.slice(m.index).trim(),
         key, role
+    };
+}
+
+// Bold-only pack (#1/#2 in the review): the title is two separate bold
+// paragraphs, English then Chinese, rather than one paragraph combining both
+// scripts — so unlike splitTitle() above, there's no single string to split
+// on a CJK boundary. Each paragraph carries its own trailing "[Key]" marker
+// (confirmed against the source: both lines repeat it), so both are stripped
+// independently rather than assuming the Chinese line inherits the English
+// line's key.
+function splitPairedTitle(enText, zhText) {
+    const { title: withoutRole, role } = stripRolePrefix(enText.trim());
+    const { title: titleEnRaw, key: keyEn } = stripTrailingKeyBracket(withoutRole.trim());
+    const { title: titleZhRaw, key: keyZh } = stripTrailingKeyBracket(zhText.trim());
+    return {
+        titleEn: titleCase(titleEnRaw.trim()),
+        titleZh: titleZhRaw.trim(),
+        key: keyEn || keyZh,
+        role
     };
 }
 
@@ -507,15 +548,43 @@ function looksLikeChordOnlyLine(trimmed) {
     return /^[\s|.]*$/.test(stripped);
 }
 
-// A song boundary is either a Heading3-styled paragraph (the clean service
-// pack this tool was originally written against) or a bold+italic paragraph
-// (the messier service packs, which never use paragraph styles at all — see
-// tools/docx-to-chart.mjs's header comment). Either way, the negative
-// conditions are a backstop, not the primary test: a bold+italic line that's
-// actually a chord line or section header (neither of which are italic in
-// practice, but nothing guarantees that of every archive) is rejected so a
-// stray formatting quirk can't fabricate a phantom song boundary.
-function isSongTitleBlock(b) {
+// A bold paragraph that is neither a chord-only line nor a bracketed section
+// header — by elimination, in a pack with no other styling to lean on (see
+// isBoldTitlePair below), that's a title line and nothing else it could be.
+function isBoldPlainParagraph(b) {
+    if (b.type !== 'p' || !b.bold) return false;
+    const trimmed = b.text.trim();
+    if (!trimmed) return false;
+    if (looksLikeChordOnlyLine(trimmed)) return false;
+    if (SECTION_HEADER_LINE.test(trimmed) || /^\[.+\]$/.test(trimmed)) return false;
+    return true;
+}
+
+// Third song-boundary shape (see the header comment): a bold-only pack with
+// no Heading3 and no italic anywhere, so bold-ness alone can't discriminate
+// a title from a chord line or section header (both bold too) — every bold
+// paragraph in such a pack is provably one of exactly three things (chord
+// line, section header, or title), so "bold and neither of the other two" is
+// unambiguous once those are excluded. But a lone bold-plain paragraph isn't
+// enough on its own to declare a song boundary — some future pack could use
+// bold for a plain aside — so this only fires on the *pair*: a bold-plain
+// paragraph immediately followed by a second bold-plain paragraph whose text
+// is Chinese, matching the "English title, then Chinese title" shape
+// actually observed in the source.
+function isBoldTitlePair(blocks, i) {
+    if (!isBoldPlainParagraph(blocks[i])) return false;
+    const next = blocks[i + 1];
+    return Boolean(next) && isBoldPlainParagraph(next) && isCjk(next.text.trim());
+}
+
+// A song boundary is one of three shapes — see the header comment. The
+// negative conditions below are a backstop, not the primary test: a
+// bold+italic line that's actually a chord line or section header (neither
+// of which are italic in practice, but nothing guarantees that of every
+// archive) is rejected so a stray formatting quirk can't fabricate a phantom
+// song boundary.
+function isSongTitleBlock(blocks, i) {
+    const b = blocks[i];
     if (b.type !== 'p') return false;
     const trimmed = b.text.trim();
     if (!trimmed) return false;
@@ -523,7 +592,8 @@ function isSongTitleBlock(b) {
     const looksLikeHeader = SECTION_HEADER_LINE.test(trimmed) || /^\[.+\]$/.test(trimmed);
     if (looksLikeChordLine || looksLikeHeader) return false;
     if (b.style === 'Heading3') return true;
-    return b.bold && b.italic;
+    if (b.bold && b.italic) return true;
+    return isBoldTitlePair(blocks, i);
 }
 
 // ───────────────────────── East-Asian width & Chinese binding ─────────────────────────
@@ -895,9 +965,9 @@ function detectScript(text) {
 
 // ───────────────────────── Front matter / body split ─────────────────────────
 
-function splitFrontMatterAndBody(blocks) {
+function splitFrontMatterAndBody(blocks, titleParagraphCount) {
     let bodyStart = blocks.length;
-    for (let i = 1; i < blocks.length; i++) {
+    for (let i = titleParagraphCount; i < blocks.length; i++) {
         const b = blocks[i];
         if (b.type !== 'p') continue;
         const text = b.text.trim();
@@ -907,16 +977,26 @@ function splitFrontMatterAndBody(blocks) {
             break;
         }
     }
-    return { frontMatter: blocks.slice(1, bodyStart), body: blocks.slice(bodyStart) };
+    return { frontMatter: blocks.slice(titleParagraphCount, bodyStart), body: blocks.slice(bodyStart) };
 }
 
 // ───────────────────────── Per-song processing ─────────────────────────
 
 function processSong(songBlocks, ctx) {
-    const { titleEn, titleZh, key: titleKey, role } = splitTitle(songBlocks[0].text);
+    // Bold-only pack (#1 in the review): a title spanning two separate bold
+    // paragraphs (English, then Chinese, each with its own trailing "[Key]")
+    // rather than one paragraph combining both scripts on the same line.
+    // Reuses isBoldTitlePair() itself rather than re-deriving the shape, so
+    // title *detection* (isSongTitleBlock) and title *parsing* here can't
+    // disagree about which paragraphs the title actually spans.
+    const pairedTitle = isBoldTitlePair(songBlocks, 0);
+    const { titleEn, titleZh, key: titleKey, role } = pairedTitle
+        ? splitPairedTitle(songBlocks[0].text, songBlocks[1].text)
+        : splitTitle(songBlocks[0].text);
     ctx.song = titleEn;
 
-    const { frontMatter, body } = splitFrontMatterAndBody(songBlocks);
+    const titleParagraphCount = pairedTitle ? 2 : 1;
+    const { frontMatter, body } = splitFrontMatterAndBody(songBlocks, titleParagraphCount);
 
     let ccli, key, timeSignature, bpm, songOrder = null;
     for (const b of frontMatter) {
@@ -1059,7 +1139,7 @@ async function main() {
         const blocks = getBodyBlocks(xml);
 
         const songStarts = blocks
-            .map((b, i) => isSongTitleBlock(b) ? i : -1)
+            .map((b, i) => isSongTitleBlock(blocks, i) ? i : -1)
             .filter(i => i !== -1);
 
         if (songStarts.length === 0) {
@@ -1136,7 +1216,15 @@ async function main() {
     // per-file behavior) left the accompanying songs.json patch describing
     // songs whose chart file was never actually written this run — a
     // confusing partial state. --force still means "overwrite happily" and
-    // skips this check entirely; --dry-run never writes anything anyway.
+    // skips this check entirely.
+    //
+    // Runs during --dry-run too, not just a real write. A dry run's whole
+    // point is to preview what a real run would do; gating this on
+    // `!args.dryRun` meant a colliding batch's dry run fell through to the
+    // per-file writeChartFile() loop instead, which reported each collision
+    // as an individual "SKIP ... already exists" line alongside "WOULD
+    // WRITE" for the non-colliding songs — a preview that didn't match what
+    // the real run would actually do (abort the whole batch, write nothing).
     //
     // Two independent checks, because either can miss what the other
     // catches: a file-path collision (same slug already on disk) doesn't
@@ -1152,7 +1240,7 @@ async function main() {
     // way "Angels We Have Heard On High" (existing) and "Angels We Have
     // Heard on High" (this run's title-cased output) are recognized as the
     // same song at all.
-    if (!args.dryRun && !args.force) {
+    if (!args.force) {
         let existingSongs = [];
         try {
             existingSongs = JSON.parse(await readFile(path.join(REPO_ROOT, 'data', 'songs.json'), 'utf8'));

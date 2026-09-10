@@ -648,7 +648,9 @@
     "title": "God Will Make A Way",
     "url": "charts/G/god-will-make-a-way.html",
     "format": "bilingual",
-    "langs": ["en"],
+    "langs": [
+      "en"
+    ],
     "ccli": "458620",
     "bpm": "63",
     "timeSignature": "2/2 time"
@@ -664,7 +666,9 @@
     "title": "Good Grace",
     "url": "charts/G/good-grace.html",
     "format": "bilingual",
-    "langs": ["en"],
+    "langs": [
+      "en"
+    ],
     "ccli": "7122177",
     "bpm": "71",
     "timeSignature": "4/4 time"
@@ -814,7 +818,16 @@
   },
   {
     "title": "Hosanna (King of Glory)",
+    "titleZh": "和散那",
+    "titleZhAlt": "和散那",
+    "pinyin": "he san na",
+    "pinyinInitials": "hsn",
     "url": "charts/H/hosanna-king-of-glory.html",
+    "format": "bilingual",
+    "langs": [
+      "en",
+      "zh-Hans"
+    ],
     "ccli": "4785835",
     "bpm": "75",
     "timeSignature": "4/4 time"
@@ -993,7 +1006,16 @@
   },
   {
     "title": "In Christ Alone",
+    "titleZh": "在基督里",
+    "titleZhAlt": "在基督裡",
+    "pinyin": "zai ji du li",
+    "pinyinInitials": "zjdl",
     "url": "charts/I/in-christ-alone.html",
+    "format": "bilingual",
+    "langs": [
+      "en",
+      "zh-Hans"
+    ],
     "ccli": "3350395",
     "bpm": "60",
     "timeSignature": "3/4 time"
@@ -1150,6 +1172,19 @@
     "timeSignature": "4/4 time"
   },
   {
+    "title": "Lord I Lift Your Name on High",
+    "titleZh": "主我高举你的名",
+    "titleZhAlt": "主我高舉你的名",
+    "pinyin": "zhu wo gao ju ni de ming",
+    "pinyinInitials": "zwgjndm",
+    "url": "charts/L/lord-i-lift-your-name-on-high.html",
+    "format": "bilingual",
+    "langs": [
+      "en",
+      "zh-Hans"
+    ]
+  },
+  {
     "title": "Lord Your Goodness",
     "url": "charts/L/lord-your-goodness.html",
     "ccli": "2336097"
@@ -1277,7 +1312,9 @@
     "title": "Offering (The Sun Cannot Compare)",
     "url": "charts/O/offering-the-sun-cannot-compare.html",
     "format": "bilingual",
-    "langs": ["en"],
+    "langs": [
+      "en"
+    ],
     "ccli": "3956562",
     "bpm": "66",
     "timeSignature": "4/4 time"
@@ -1426,7 +1463,9 @@
     "title": "Reward",
     "url": "charts/R/reward.html",
     "format": "bilingual",
-    "langs": ["en"]
+    "langs": [
+      "en"
+    ]
   },
   {
     "title": "Sanctuary (City Harvest)",
@@ -1576,7 +1615,9 @@
     "title": "There is None Like You",
     "url": "charts/T/there-is-none-like-you.html",
     "format": "bilingual",
-    "langs": ["en"],
+    "langs": [
+      "en"
+    ],
     "ccli": "674545",
     "bpm": "69",
     "timeSignature": "4/4 time"
@@ -1799,7 +1840,16 @@
   },
   {
     "title": "Worthy is the Lamb",
+    "titleZh": "神羔羊配得",
+    "titleZhAlt": "神羔羊配得",
+    "pinyin": "shen gao yang pei de",
+    "pinyinInitials": "sgypd",
     "url": "charts/W/worthy-is-the-lamb.html",
+    "format": "bilingual",
+    "langs": [
+      "en",
+      "zh-Hans"
+    ],
     "ccli": "3217555",
     "bpm": "76",
     "timeSignature": "4/4 time"
@@ -1861,7 +1911,9 @@
     "title": "You Are Here (in our midst)",
     "url": "charts/Y/you-are-here-in-our-midst.html",
     "format": "bilingual",
-    "langs": ["en"],
+    "langs": [
+      "en"
+    ],
     "ccli": "1896332"
   },
   {
@@ -2044,7 +2096,10 @@
     "langs": [
       "en",
       "zh-Hans"
-    ]
+    ],
+    "ccli": "5607039",
+    "bpm": "128",
+    "timeSignature": "4/4 time"
   },
   {
     "title": "It Came Upon a Midnight Clear",
@@ -2053,7 +2108,10 @@
     "langs": [
       "en",
       "zh-Hant"
-    ]
+    ],
+    "ccli": "31078",
+    "bpm": "120",
+    "timeSignature": "6/8 time"
   },
   {
     "title": "Hark! the Herald Angels Sing",
@@ -2062,6 +2120,9 @@
     "langs": [
       "en",
       "zh-Hans"
-    ]
+    ],
+    "ccli": "7014599",
+    "bpm": "109",
+    "timeSignature": "4/4 time"
   }
 ]

@@ -118,7 +118,11 @@ function parseV1Body(text, meta, startLine = 1) {
 // structured curly-brace parsing at all) without maintaining a second,
 // driftable copy of the keyword list.
 export const NOTE_LINE = /^\{(note|repeat|goto|segue|modulate|chords):\s*(.*)\}$/i;
-const PINYIN_LINE = /^py:\s*(.*)$/i;
+// py!: (BILINGUAL-SPEC.md §5.6) is a hand-authored reading — rendering
+// treats it exactly like a generated py: line; only tools/lib/pinyin.mjs
+// (build-index.mjs / validate-charts.mjs) cares about the "!" as a signal
+// to leave the line alone.
+const PINYIN_LINE = /^py!?:\s*(.*)$/i;
 const LANG_LINE = /^([a-zA-Z]{2,3}(?:-[A-Za-z]+)?):\s*(.*)$/;
 const INLINE_CHORD = /\[([^\]]+)\]/g;
 
@@ -222,12 +226,12 @@ function parseV2Body(rawBody, meta, startLine = 1) {
         }
 
         if (PINYIN_LINE.test(line)) {
-            // Generated-at-build-time layer (§5.6): written beneath the
-            // zh-* line it annotates, so it attaches to whichever lyric
-            // line was most recently pushed rather than becoming a
-            // "language" of its own — .pinyin is reading-aid metadata on
-            // that line, not a fourth displayable language alongside
-            // en/zh in the §6.2 mode sense.
+            // Generated-at-build-time layer, or a hand-authored py!:
+            // exception to it (§5.6): written beneath the zh-* line it
+            // annotates, so it attaches to whichever lyric line was most
+            // recently pushed rather than becoming a "language" of its own
+            // — .pinyin is reading-aid metadata on that line, not a fourth
+            // displayable language alongside en/zh in the §6.2 mode sense.
             const match = line.match(PINYIN_LINE);
             const lastLine = pendingLines[pendingLines.length - 1];
             if (lastLine) lastLine.pinyin = match[1].trim();

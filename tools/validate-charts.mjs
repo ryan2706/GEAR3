@@ -489,9 +489,11 @@ async function validateChartFile(filePath) {
 // stale py: line (a hand-edit, or a zh-* line edited without re-running the
 // generator) is inert-but-wrong the same way a mismatched sidecar key is
 // (rule 11): it doesn't break parsing, it just shows a reading nobody
-// intended. Reuses tools/lib/pinyin.mjs's diffPinyinLines() — the exact
-// same function build-index.mjs uses to decide what to write — so this can
-// never drift into disagreeing with the generator about what's correct.
+// intended. A deliberate exception uses py!: instead (§5.6) — diffPinyinLines()
+// skips those entirely, so this rule never sees them. Reuses tools/lib/
+// pinyin.mjs's diffPinyinLines() — the exact same function build-index.mjs
+// uses to decide what to write — so this can never drift into disagreeing
+// with the generator about what's correct.
 async function validatePinyin(pre, filePath) {
     await loadPinyinExceptions();
     const diffs = diffPinyinLines(pre.body);

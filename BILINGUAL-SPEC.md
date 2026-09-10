@@ -253,16 +253,41 @@ translator credits, TODOs.
 
 ### 5.6 Generated layers
 
-`py:` (pinyin) is **generated at build time, never authored**. `tools/build-index.mjs`
-derives it from the `zh-*` line immediately above (via `pinyin-pro`, corrected by
-`tools/pinyin-exceptions.json`) and writes it back — idempotent, safe to re-run any time a
-lyric or the exception map changes. Hand-edits get overwritten on the next run; if a
-reading is wrong, fix it in `tools/pinyin-exceptions.json`, not the chart. The first time a
-chart file gets a `py:` line written into it, the script also prepends an HTML comment
-directly above the `<pre>` saying so — the file itself carries the warning, not only this
-spec. `tools/validate-charts.mjs` rule 12 (§8) warns when a chart's `py:` lines don't match
-what the generator would currently produce (missing, or stale after a hand-edit or an
-unregenerated lyric change).
+`py:` (pinyin) is **generated at build time by default, never hand-edited**. `tools/
+build-index.mjs` derives it from the `zh-*` line immediately above (via `pinyin-pro`,
+corrected by `tools/pinyin-exceptions.json`) and writes it back — idempotent, safe to
+re-run any time a lyric or the exception map changes. Hand-edits to a `py:` line get
+overwritten on the next run; if a reading is wrong, fix it in `tools/pinyin-exceptions.json`,
+not the chart. The first time a chart file gets a `py:` line written into it, the script also
+prepends an HTML comment directly above the `<pre>` saying so — the file itself carries the
+warning, not only this spec. `tools/validate-charts.mjs` rule 12 (§8) warns when a chart's
+`py:` lines don't match what the generator would currently produce (missing, or stale after
+a hand-edit or an unregenerated lyric change).
+
+**`py!:` is the deliberate exception to all of that.** Write `py!:` instead of `py:` beneath
+a `zh-*` line to mark that one reading as hand-authored: `tools/build-index.mjs` never
+writes to it and `tools/validate-charts.mjs` rule 12 never checks it against what the
+generator would produce. Every other line in the file still renders identically either way —
+the renderer (`js/chart-parser.js`) treats `py:` and `py!:` the same, since a reader doesn't
+care where a reading came from.
+
+Two real reasons to reach for it, both confirmed against this corpus rather than
+hypothetical:
+
+- **pinyin-pro's punctuation spacing reads worse than a person would write it.** It always
+  inserts a space *before* an ASCII comma when tokenizing (`那,那` → `nà , nà`, not `nà, nà`)
+  — there's no option to turn this off, and it's true regardless of anything in the source
+  `zh-*` line.
+- **A `zh-*` line carries literal whitespace copied from a source document**, usually
+  cosmetic alignment padding matching the `en:` line above it (BILINGUAL-SPEC.md §6.1's
+  rendering model doesn't need it — chords attach to units, not character columns — so it's
+  inert on screen, just present in the text). This isn't fixable by making the generator
+  "tolerate" the space: pinyin-pro's own token separator *is* a space, so once a literal
+  space is joined into the generated string alongside its neighboring token-separator
+  spaces, nothing downstream can tell "a real space that was content" apart from "the
+  boundary between two syllables" — whitespace can't be both the delimiter and a delimited
+  value in the same plain-text encoding. A `zh-*` line with this kind of padding needs
+  `py!:`, not a smarter generator.
 
 ---
 

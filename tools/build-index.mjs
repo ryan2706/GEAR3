@@ -32,6 +32,10 @@
 //     (character or whole phrase -> correct reading), re-run. Don't patch
 //     the chart file by hand — see BILINGUAL-SPEC.md §5.6's own framing of
 //     this ("fix it in the build script's exception map, not the chart").
+//   - Reading pinyin-pro just can't produce well (its comma spacing, or a
+//     zh-* line with literal alignment whitespace — see the known
+//     limitation below) -> write py!: instead of py: for that one line.
+//     This script and validate-charts.mjs rule 12 both skip it entirely.
 // See also the data/songs.json section of CLAUDE.md.
 //
 // tools/pinyin-exceptions.json is loaded once at startup via pinyin-pro's
@@ -53,8 +57,10 @@
 // punctuation, which is what lets the renderer zip pinyin syllables
 // 1:1 against Han characters for ruby annotation, but a literal space
 // inside the lyric text would collapse against the token separators and
-// break that count. Not a real concern for this corpus (Chinese lyric text
-// doesn't use inter-word spacing) but worth knowing if it ever changes.
+// break that count. This does happen — some source docs pad zh-* lines with
+// alignment spaces copied from the English line — and it isn't fixable in
+// the generator (see tools/lib/pinyin.mjs's generateLinePinyin comment for
+// why); use a hand-authored py!: line for that lyric line instead.
 //
 // Records without titleZh, and chart files that aren't data-format
 // "bilingual", are left completely untouched.
